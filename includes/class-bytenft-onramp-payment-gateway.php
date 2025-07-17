@@ -116,6 +116,8 @@ class BYTENFT_ONRAMP_PAYMENT_GATEWAY extends WC_Payment_Gateway_CC
 				return sanitize_text_field($account);
 			}, $raw_accounts);
 
+			$accStatusApiUrl = $this->get_api_url('/api/check-merchant-status');
+
 			foreach ($accounts as $index => $account) {
 				// Sanitize input
 				$account_title = sanitize_text_field($account['title'] ?? '');
@@ -126,6 +128,24 @@ class BYTENFT_ONRAMP_PAYMENT_GATEWAY extends WC_Payment_Gateway_CC
 				$sandbox_secret_key = sanitize_text_field($account['sandbox_secret_key'] ?? '');
 				$has_sandbox = isset($account['has_sandbox']); // Checkbox handling
 
+				$public_key = $this->sandbox ? $sandbox_public_key : $live_public_key;
+                $secret_key = $this->sandbox ? $sandbox_secret_key : $live_secret_key;
+
+                $merchant_status_data = [
+                    'is_sandbox'     => $this->sandbox,
+                    'api_public_key' => $public_key,
+                    'api_secret_key' => $secret_key,
+                ];
+ 
+                // Use cache for status check
+                $cache_key = 'merchant_status_' . md5($public_key);
+                $merchant_status_response = $this->get_cached_api_response($accStatusApiUrl, $merchant_status_data, $cache_key);
+                if ($merchant_status_response['status'] && $merchant_status_response['status'] == 'error') {
+                    $errors[] = sprintf(__('Account "%s": Title, Secret key does not match for the given API key and user.', 'bytenft-payment-gateway'), $account_title);
+                    continue;
+                }
+
+		
 				//  Ignore empty accounts
 				if (empty($account_title) && empty($live_public_key) && empty($live_secret_key) && empty($sandbox_public_key) && empty($sandbox_secret_key)) {
 					continue;
@@ -240,15 +260,15 @@ class BYTENFT_ONRAMP_PAYMENT_GATEWAY extends WC_Payment_Gateway_CC
 				'title' => __('Title', 'bytenft-onramp-payment-gateway'),
 				'type' => 'text',
 				'description' => __('This controls the title which the user sees during checkout.', 'bytenft-onramp-payment-gateway'),
-				'default' => __('Credit/Debit Card', 'bytenft-onramp-payment-gateway'),
+				'default' => __('Pay with Debit Cards (Visa, Mastercard, or Apple Pay)', 'bytenft-onramp-payment-gateway'),
 				'desc_tip' => __('Enter the title of the payment gateway as it will appear to customers during checkout.', 'bytenft-onramp-payment-gateway'),
 			],
 			'description' => [
 				'title' => __('Description', 'bytenft-onramp-payment-gateway'),
 				'type' => 'text',
 				'description' => __('Provide a brief description of the ByteNFT Onramp Payment Gateway option.', 'bytenft-onramp-payment-gateway'),
-				'default' => 'Description of the ByteNFT Onramp Payment Gateway Option.',
-				'desc_tip' => __('Enter a brief description that explains the ByteNFT Onramp Payment Gateway option.', 'bytenft-onramp-payment-gateway'),
+				'default' => 'Pay easily using Visa, Mastercard Debit, Apple Pay, or your Coinbase account. Your payment is instantly converted to USDC and applied to your order — no wallet setup or extra steps required.',
+				'desc_tip' => __('Use Apple Pay for the highest approval success. No signup needed — pay up to $500/week.', 'bytenft-onramp-payment-gateway'),
 			],
 			'instructions' => [
 				'title' => __('Instructions', 'bytenft-onramp-payment-gateway'),
@@ -543,12 +563,13 @@ class BYTENFT_ONRAMP_PAYMENT_GATEWAY extends WC_Payment_Gateway_CC
 			   ========================================================== */
 
 			$public_key = $this->sandbox ? $account['sandbox_public_key'] : $account['live_public_key'];
-
+			$secret_key= $this->sandbox ? $account['sandbox_secret_key'] : $account['live_secret_key'];
 			$accStatusApiUrl = $this->get_api_url('/api/check-merchant-status');
 			$merchant_status_data = [
 			    'is_sandbox'     => $this->sandbox,
 			    'amount'         => $order->get_total(),
 			    'api_public_key' => $public_key,
+				'api_secret_key' => $secret_key,
 			];
 
 			// Use cache for status check
@@ -588,8 +609,6 @@ class BYTENFT_ONRAMP_PAYMENT_GATEWAY extends WC_Payment_Gateway_CC
 			$order->add_order_note(__('Processing Payment Via: ', 'bytenft-onramp-payment-gateway') . $account['title']);
 
 			// **Prepare API Data**
-			$public_key = $this->sandbox ? $account['sandbox_public_key'] : $account['live_public_key'];
-			$secret_key = $this->sandbox ? $account['sandbox_secret_key'] : $account['live_secret_key'];
 			$data = $this->bytenft_onramp_prepare_payment_data($order, $public_key, $secret_key);
 
 			// **Check Transaction Limit**
@@ -1153,11 +1172,12 @@ class BYTENFT_ONRAMP_PAYMENT_GATEWAY extends WC_Payment_Gateway_CC
 
 	    foreach ($accounts as $account) {
 	        $public_key = $this->sandbox ? $account['sandbox_public_key'] : $account['live_public_key'];
-
+			$secret_key = $this->sandbox ? $account['sandbox_secret_key'] : $account['live_secret_key'];
 	        $data = [
 	            'is_sandbox'     => $this->sandbox,
 	            'amount'         => $amount,
 	            'api_public_key' => $public_key,
+				'api_secret_key' => $secret_key,
 	        ];
 
 	        $cache_key = 'bytenft_onramp_daily_limit_' . md5($public_key . $amount);	
@@ -1475,7 +1495,7 @@ class BYTENFT_ONRAMP_PAYMENT_GATEWAY extends WC_Payment_Gateway_CC
 		// Filter out used accounts and check correct mode status & keys
 		$available_accounts = array_filter($settings, function ($account) use ($used_accounts, $status_key, $public_key, $secret_key) {
 			return !in_array($account[$public_key], $used_accounts, true)
-				&& isset($account[$status_key]) && $account[$status_key] === 'Active'
+				&& isset($account[$status_key]) && ($account[$status_key] === 'active' || $account[$status_key] === 'Active')
 				&& !empty($account[$public_key]) && !empty($account[$secret_key]);
 		});
 

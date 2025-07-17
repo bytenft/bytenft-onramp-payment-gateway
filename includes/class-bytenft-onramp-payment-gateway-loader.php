@@ -462,8 +462,8 @@ class BYTENFT_ONRAMP_PAYMENT_GATEWAY_Loader
 		$updated = false;
 		$statusSummary = [];
 
-		if (!empty($response_data['statuses'])) {
-			foreach ($response_data['statuses'] as $statusData) {
+		if (!empty($response_data['data'])) {
+			foreach ($response_data['data'] as $statusData) {
 				if (
 					isset($statusData['mode'], $statusData['public_key'], $statusData['status']) &&
 					!empty($statusData['status'])
