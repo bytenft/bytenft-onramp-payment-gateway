@@ -8,7 +8,7 @@ require_once plugin_dir_path(__FILE__) . 'config.php';
 
 /**
  * Class BYTENFT_ONRAMP_PAYMENT_GATEWAY_Loader
- * Handles the loading and initialization of the DFin Sell Payment Gateway plugin.
+ * Handles the loading and initialization of the ByteNFT Onramp Payment Gateway plugin.
  */
 class BYTENFT_ONRAMP_PAYMENT_GATEWAY_Loader
 {
@@ -130,8 +130,8 @@ class BYTENFT_ONRAMP_PAYMENT_GATEWAY_Loader
 	{
 		if (plugin_basename(BYTENFT_ONRAMP_PAYMENT_GATEWAY_FILE) === $file) {
 			$row_meta = [
-				'docs'    => '<a href="' . esc_url(apply_filters('bytenft_onramp_docs_url', 'https://www.dfin.ai/api/docs/wordpress-plugin')) . '" target="_blank">' . esc_html__('Documentation', 'bytenft-onramp-payment-gateway') . '</a>',
-				'support' => '<a href="' . esc_url(apply_filters('bytenft_onramp_support_url', 'https://www.dfin.ai/reach-out')) . '" target="_blank">' . esc_html__('Support', 'bytenft-onramp-payment-gateway') . '</a>',
+				'docs'    => '<a href="' . esc_url(apply_filters('bytenft_onramp_docs_url', 'https://www.bytenft.xyz/api/docs/wordpress-plugin')) . '" target="_blank">' . esc_html__('Documentation', 'bytenft-onramp-payment-gateway') . '</a>',
+				'support' => '<a href="' . esc_url(apply_filters('bytenft_onramp_support_url', 'https://www.bytenft.xyz/reach-out')) . '" target="_blank">' . esc_html__('Support', 'bytenft-onramp-payment-gateway') . '</a>',
 			];
 
 			$links = array_merge($links, $row_meta);
@@ -259,7 +259,7 @@ class BYTENFT_ONRAMP_PAYMENT_GATEWAY_Loader
 
 		// Proceed only if the order status is 'pending'
 		if ($order->get_status() === 'pending') {
-			// Call the DFin Sell to update status
+			// Call the ByteNFT Onramp API to update status
 			$transactionStatusApiUrl = $this->get_api_url('/api/update-txn-status');
 			$response = wp_remote_post($transactionStatusApiUrl, [
 				'method'    => 'POST',
@@ -273,7 +273,7 @@ class BYTENFT_ONRAMP_PAYMENT_GATEWAY_Loader
 
 			// Check for errors in the API request
 			if (is_wp_error($response)) {
-				wp_send_json_error(['message' => 'Failed to connect to the DFin Sell.']);
+				wp_send_json_error(['message' => 'Failed to connect to the ByteNFT Onramp API.']);
 				wp_die();
 			}
 
@@ -281,7 +281,7 @@ class BYTENFT_ONRAMP_PAYMENT_GATEWAY_Loader
 			$response_body = wp_remote_retrieve_body($response);
 			$response_data = json_decode($response_body, true);
 
-			$log_message = 'Popup closed. Transaction status received from DFin Sell.';
+			$log_message = 'Popup closed. Transaction status received from ByteNFT Onramp API.';
 
 			wc_get_logger()->info($log_message, [
 				'source'  => 'bytenft-onramp-payment-gateway',
@@ -293,7 +293,7 @@ class BYTENFT_ONRAMP_PAYMENT_GATEWAY_Loader
 
 			// Ensure the response contains the expected data
 			if (!isset($response_data['transaction_status'])) {
-				wp_send_json_error(['message' => 'Invalid response from DFin Sell.']);
+				wp_send_json_error(['message' => 'Invalid response from ByteNFT Onramp API.']);
 				wp_die();
 			}
 
@@ -326,7 +326,7 @@ class BYTENFT_ONRAMP_PAYMENT_GATEWAY_Loader
 					case 'processing':
 						// Update the order status based on the selected value
 						try {
-							$order->update_status($configured_order_status, 'Order marked as ' . $configured_order_status . ' by DFin Sell.');
+							$order->update_status($configured_order_status, 'Order marked as ' . $configured_order_status . ' by ByteNFT Onramp.');
 							wp_send_json_success(['message' => 'Order status updated successfully.', 'order_id' => $order_id, 'redirect_url' => $payment_return_url]);
 						} catch (Exception $e) {
 							wp_send_json_error(['message' => 'Failed to update order status: ' . $e->getMessage()]);
@@ -335,7 +335,7 @@ class BYTENFT_ONRAMP_PAYMENT_GATEWAY_Loader
 
 					case 'failed':
 						try {
-							$order->update_status('failed', 'Order marked as failed by DFin Sell.');
+							$order->update_status('failed', 'Order marked as failed by ByteNFT Onramp.');
 							wp_send_json_success(['message' => 'Order status updated to failed.', 'order_id' => $order_id, 'redirect_url' => $payment_return_url]);
 						} catch (Exception $e) {
 							wp_send_json_error(['message' => 'Failed to update order status: ' . $e->getMessage()]);
@@ -344,7 +344,7 @@ class BYTENFT_ONRAMP_PAYMENT_GATEWAY_Loader
 					case 'canceled':
 					case 'expired':
 						try {
-							$order->update_status('canceled', 'Order marked as canceled by DFin Sell.');
+							$order->update_status('canceled', 'Order marked as canceled by ByteNFT Onramp.');
 							wp_send_json_success(['message' => 'Order status updated to canceled.', 'order_id' => $order_id, 'redirect_url' => $payment_return_url]);
 						} catch (Exception $e) {
 							wp_send_json_error(['message' => 'Failed to update order status: ' . $e->getMessage()]);

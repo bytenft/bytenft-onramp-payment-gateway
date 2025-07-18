@@ -39,17 +39,17 @@ class BYTENFT_ONRAMP_PAYMENT_GATEWAY_REST_API
 		// Sanitize the API key parameter early
 		$api_key = sanitize_text_field($api_key);
 
-		// Get DFinSell settings
-		$dfin_sell_settings = get_option('woocommerce_bytenft_onramp_payment_gateway_accounts');
-		$dfin_settings = get_option('woocommerce_bytenft_onramp_settings');
+		// Get ByteNFT Onramp settings
+		$bytenft_onramp_settings = get_option('woocommerce_bytenft_onramp_payment_gateway_accounts');
+		$bytenft_settings = get_option('woocommerce_bytenft_onramp_settings');
 
-		if (!$dfin_sell_settings || empty($dfin_sell_settings)) {
+		if (!$bytenft_onramp_settings || empty($bytenft_onramp_settings)) {
 			return false; // No accounts available
 		}
 
-		$accounts = $dfin_sell_settings;
+		$accounts = $bytenft_onramp_settings;
 
-		$sandbox = isset($dfin_settings['sandbox']) && $dfin_settings['sandbox'] === 'yes';
+		$sandbox = isset($bytenft_settings['sandbox']) && $bytenft_settings['sandbox'] === 'yes';
 
 		foreach ($accounts as $account) {
 			$public_key = $sandbox ? sanitize_text_field($account['sandbox_public_key']) : sanitize_text_field($account['live_public_key']);
@@ -63,7 +63,7 @@ class BYTENFT_ONRAMP_PAYMENT_GATEWAY_REST_API
 		return false;
 	}
 	/**
-	 * Handles incoming DFin Sell API requests to update order status.
+	 * Handles incoming ByteNFT Onramp API requests to update order status.
 	 *
 	 * @param WP_REST_Request $request The REST API request object.
 	 * @return WP_REST_Response The response object.
@@ -78,7 +78,7 @@ class BYTENFT_ONRAMP_PAYMENT_GATEWAY_REST_API
 		$api_order_status = isset($parameters['order_status']) ? sanitize_text_field($parameters['order_status']) : '';
 		$pay_id = isset($parameters['pay_id']) ? sanitize_text_field($parameters['pay_id']) : '';
 
-		$this->logger->info('DFin Sell API Request Received.', [
+		$this->logger->info('ByteNFT Onramp API Request Received.', [
 		    'source'  => 'bytenft-onramp-payment-gateway',
 		    'context' => [
 		        'response_payload' => $parameters
@@ -130,14 +130,14 @@ class BYTENFT_ONRAMP_PAYMENT_GATEWAY_REST_API
 					// Default to 'processing' if not explicitly set in gateway options.
 					$target_order_status = sanitize_text_field($gateway->get_option('order_status', 'processing'));
 				} else {
-					$this->logger->error('DFin Sell payment gateway settings not found.', array('source' => 'bytenft-onramp-payment-gateway'));
+					$this->logger->error('ByteNFT Onramp payment gateway settings not found.', array('source' => 'bytenft-onramp-payment-gateway'));
 					return new WP_REST_Response(['error' => 'Payment gateway configuration error'], 500);
 				}
 
 				// Validate that the configured target status is a recognized WooCommerce status.
 				$allowed_statuses = wc_get_order_statuses();
 				if (!array_key_exists('wc-' . $target_order_status, $allowed_statuses)) {
-					$this->logger->error('Invalid order status configured in DFin Sell gateway settings: ' . $target_order_status, array('source' => 'bytenft-onramp-payment-gateway'));
+					$this->logger->error('Invalid order status configured in ByteNFT Onramp gateway settings: ' . $target_order_status, array('source' => 'bytenft-onramp-payment-gateway'));
 					return new WP_REST_Response(['error' => 'Invalid configured order status'], 400);
 				}
 			} else {
@@ -158,7 +158,7 @@ class BYTENFT_ONRAMP_PAYMENT_GATEWAY_REST_API
 			// For now, if it's not a 'completed' status, we might not want to change the status,
 			// or we might set $target_order_status based on $api_order_status if those are mapped.
 			// This example assumes 'completed' is the primary status to act upon.
-			$this->logger->info('DFin Sell API requested status "' . esc_html($api_order_status) . '" for order ' . esc_html($order_id) . '. Current status is "' . esc_html($current_order_status) . '". No specific action for this API status defined.', array('source' => 'bytenft-onramp-payment-gateway'));
+			$this->logger->info('ByteNFT Onramp API requested status "' . esc_html($api_order_status) . '" for order ' . esc_html($order_id) . '. Current status is "' . esc_html($current_order_status) . '". No specific action for this API status defined.', array('source' => 'bytenft-onramp-payment-gateway'));
 
 			// If no action is needed for this specific API status, we still return success to acknowledge receipt.
 			$payment_return_url = esc_url($order->get_checkout_order_received_url());
@@ -172,7 +172,7 @@ class BYTENFT_ONRAMP_PAYMENT_GATEWAY_REST_API
 				$target_order_status,
 				sprintf(
 					// translators: %1$s: current order status, %2$s: target order status
-					__('Order status updated via DFin Sell API from %1$s to %2$s', 'bytenft-onramp-payment-gateway'),
+					__('Order status updated via ByteNFT Onramp API from %1$s to %2$s', 'bytenft-onramp-payment-gateway'),
 					$current_order_status, // This will map to %1$s
 					$target_order_status   // This will map to %2$s
 				)
@@ -193,7 +193,7 @@ class BYTENFT_ONRAMP_PAYMENT_GATEWAY_REST_API
 			WC()->cart->empty_cart();
 		}
 
-		// Return a successful response to DFin Sell API.
+		// Return a successful response to ByteNFT Onramp API.
 		$payment_return_url = esc_url($order->get_checkout_order_received_url());
 		return new WP_REST_Response(['success' => true, 'message' => 'Order status processed successfully', 'payment_return_url' => $payment_return_url], 200);
 	}

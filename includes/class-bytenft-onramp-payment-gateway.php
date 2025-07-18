@@ -1073,7 +1073,7 @@ class BYTENFT_ONRAMP_PAYMENT_GATEWAY extends WC_Payment_Gateway_CC
 			wp_localize_script('bytenft-onramp-js', 'bytenft_onramp_params', [
 				'ajax_url' => admin_url('admin-ajax.php'),
 				'checkout_url' => wc_get_checkout_url(),
-				'dfin_loader' => plugins_url('../assets/images/loader.gif', __FILE__),
+				'bytenft_onramp_loader' => plugins_url('../assets/images/loader.gif', __FILE__),
 				'bytenft_onramp_nonce' => wp_create_nonce('bytenft_onramp_payment'), // Create a nonce for verification
 				'payment_method' => $this->id,
 			]);
@@ -1141,7 +1141,7 @@ class BYTENFT_ONRAMP_PAYMENT_GATEWAY extends WC_Payment_Gateway_CC
 	    $accounts = $this->get_all_accounts();
 
 	    if (empty($accounts)) {
-	        $log_key = 'dfin_log_no_accounts_' . md5($this->id);
+	        $log_key = 'bytenft_onramp_log_no_accounts_' . md5($this->id);
 	        if (false === get_transient($log_key)) {
 	            wc_get_logger()->warning('No payment accounts are available. The payment option will not appear during checkout.', [
 	                'source' => 'bytenft-onramp-payment-gateway'
@@ -1208,7 +1208,7 @@ class BYTENFT_ONRAMP_PAYMENT_GATEWAY extends WC_Payment_Gateway_CC
 	    }
 
 	    if (!$user_account_active) {
-	        $log_key = 'dfin_log_no_active_accounts_' . md5($this->id);
+	        $log_key = 'bytenft_onramp_log_no_active_accounts_' . md5($this->id);
 	        if (false === get_transient($log_key)) {
 	            wc_get_logger()->warning('Payment gateway is hidden. No payment accounts are currently active or approved for transactions.', [
 	                'source' => 'bytenft-onramp-payment-gateway'
@@ -1221,7 +1221,7 @@ class BYTENFT_ONRAMP_PAYMENT_GATEWAY extends WC_Payment_Gateway_CC
 	    }
 
 	    if ($all_high_priority_accounts_limited) {
-	        $log_key = 'dfin_log_accounts_limited_' . md5($this->id);
+	        $log_key = 'bytenft_onramp_log_accounts_limited_' . md5($this->id);
 	        if (false === get_transient($log_key)) {
 	            wc_get_logger()->warning('Payment gateway is hidden. All available accounts have reached their daily transaction limits.', [
 	                'source' => 'bytenft-onramp-payment-gateway'
@@ -1234,7 +1234,7 @@ class BYTENFT_ONRAMP_PAYMENT_GATEWAY extends WC_Payment_Gateway_CC
 	    }
 
 	    // ✅ At least one account is valid and within limits
-	    $log_key = 'dfin_log_gateway_active_' . md5($this->id);
+	    $log_key = 'bytenft_onramp_log_gateway_active_' . md5($this->id);
 	    if (false === get_transient($log_key)) {
 	        wc_get_logger()->info('Payment gateway is active. At least one account is available and within limits.', [
 	            'source' => 'bytenft-onramp-payment-gateway'
@@ -1402,11 +1402,11 @@ class BYTENFT_ONRAMP_PAYMENT_GATEWAY extends WC_Payment_Gateway_CC
 	}
 
 	/**
-	 * Send an email notification via DfinSell API
+	 * Send an email notification via byteNFT API
 	 */
 	private function send_account_switch_email($oldAccount, $newAccount)
 	{
-		$dfinSellApiUrl = $this->get_api_url('/api/switch-account-email'); // Dfin Sell API Endpoint
+		$bytenftOnrampApiUrl = $this->get_api_url('/api/switch-account-email'); // byteNFT API Endpoint
 
 		// Use the credentials of the old (current) account to authenticate
 		$api_key = $this->sandbox ? $oldAccount['sandbox_public_key'] : $oldAccount['live_public_key'];
@@ -1434,8 +1434,8 @@ class BYTENFT_ONRAMP_PAYMENT_GATEWAY extends WC_Payment_Gateway_CC
 		// Log API request details
 		//wc_get_logger()->info('Request Data: ' . json_encode($emailData), ['source' => 'bytenft-onramp-payment-gateway']);
 
-		// Send data to DFinSell API
-		$response = wp_remote_post($dfinSellApiUrl, [
+		// Send data to byteNFT API
+		$response = wp_remote_post($bytenftOnrampApiUrl, [
 			'method' => 'POST',
 			'timeout' => 30,
 			'body' => json_encode($emailData),
@@ -1461,7 +1461,7 @@ class BYTENFT_ONRAMP_PAYMENT_GATEWAY extends WC_Payment_Gateway_CC
 
 		// Check if the API response has errors
 		if (!empty($response_data['error'])) {
-			wc_get_logger()->error('DFinSell API Error: ' . json_encode($response_data), ['source' => 'bytenft-onramp-payment-gateway']);
+			wc_get_logger()->error('byteNFT API Error: ' . json_encode($response_data), ['source' => 'bytenft-onramp-payment-gateway']);
 			return false;
 		}
 
