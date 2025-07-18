@@ -8,8 +8,6 @@ jQuery(function ($) {
 	var isPollingActive = false; // Flag to ensure only one polling interval runs
 	let isHandlerBound = false;
 
-	console.log(" :: bytenft_onramp_params :: ",bytenft_onramp_params);
-
 	// Sanitize loader URL and append loader image to the body
 	var loaderUrl = bytenft_onramp_params.bytenft_onramp_loader ? encodeURI(bytenft_onramp_params.bytenft_onramp_loader) : '';
 	$('body').append(
@@ -44,9 +42,12 @@ jQuery(function ($) {
 
 	// Rebind after checkout updates
 	$(document.body).on("updated_checkout", function () {
-		isHandlerBound = false; // Allow rebinding only once on the next update
+		// Unbind to be safe, then rebind
+		$("form.checkout").off("submit.bytenft-onramp");
+		isHandlerBound = false;
 		bindCheckoutHandler();
 	});
+
 
 	// Initial binding of the form submit handler
 	bindCheckoutHandler();
@@ -60,6 +61,7 @@ jQuery(function ($) {
 
 		// If a submission is already in progress, prevent further submissions
 		if (isSubmitting) {
+			console.warn("Checkout already submitting...");
 			return false;
 		}
 
@@ -198,8 +200,6 @@ jQuery(function ($) {
 	function handleResponse(response, $form) {
 		$('.bytenft-onramp-loader-background, .bytenft-onramp-loader').hide();
 		$('.wc_er').remove();
-
-		console.log('Response from server:', response);
 
 		try {
 			if (response.result === 'success') {
