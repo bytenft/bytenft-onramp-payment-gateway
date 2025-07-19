@@ -9,10 +9,10 @@ jQuery(function ($) {
 	let isHandlerBound = false;
 
 	// Sanitize loader URL and append loader image to the body
-	var loaderUrl = dfinsell_params.dfin_loader ? encodeURI(dfinsell_params.dfin_loader) : '';
+	var loaderUrl = bytenft_onramp_params.bytenft_onramp_loader ? encodeURI(bytenft_onramp_params.bytenft_onramp_loader) : '';
 	$('body').append(
-		'<div class="dfinsell-loader-background"></div>' +
-		'<div class="dfinsell-loader"><img src="' + loaderUrl + '" alt="Loading..." /></div>'
+		'<div class="bytenft-onramp-loader-background"></div>' +
+		'<div class="bytenft-onramp-loader"><img src="' + loaderUrl + '" alt="Loading..." /></div>'
 	);
 
 	// Disable default WooCommerce checkout for your custom payment method
@@ -20,7 +20,7 @@ jQuery(function ($) {
 		var selectedPaymentMethod = $('input[name="payment_method"]:checked').val();
 
 		// Prevent WooCommerce default behavior for your custom method
-		if (selectedPaymentMethod === dfinsell_params.payment_method) {
+		if (selectedPaymentMethod === bytenft_onramp_params.payment_method) {
 			return false; // Stop WooCommerce default script
 		}
 	});
@@ -31,9 +31,9 @@ jQuery(function ($) {
 		isHandlerBound = true;
 
 		// Unbind the previous handler before rebinding
-		$("form.checkout").off("submit.dfinsell").on("submit.dfinsell", function (e) {
+		$("form.checkout").off("submit.bytenft-onramp").on("submit.bytenft-onramp", function (e) {
 			// Check if the custom payment method is selected
-			if ($(this).find('input[name="payment_method"]:checked').val() === dfinsell_params.payment_method) {
+			if ($(this).find('input[name="payment_method"]:checked').val() === bytenft_onramp_params.payment_method) {
 				handleFormSubmit.call(this, e);
 				return false; // Prevent other handlers
 			}
@@ -42,9 +42,12 @@ jQuery(function ($) {
 
 	// Rebind after checkout updates
 	$(document.body).on("updated_checkout", function () {
-		isHandlerBound = false; // Allow rebinding only once on the next update
+		// Unbind to be safe, then rebind
+		$("form.checkout").off("submit.bytenft-onramp");
+		isHandlerBound = false;
 		bindCheckoutHandler();
 	});
+
 
 	// Initial binding of the form submit handler
 	bindCheckoutHandler();
@@ -58,6 +61,7 @@ jQuery(function ($) {
 
 		// If a submission is already in progress, prevent further submissions
 		if (isSubmitting) {
+			console.warn("Checkout already submitting...");
 			return false;
 		}
 
@@ -66,7 +70,7 @@ jQuery(function ($) {
 
 		var selectedPaymentMethod = $form.find('input[name="payment_method"]:checked').val();
 
-		if (selectedPaymentMethod !== dfinsell_params.payment_method) {
+		if (selectedPaymentMethod !== bytenft_onramp_params.payment_method) {
 			isSubmitting = false; // Reset the flag if not using the custom payment method
 			return true; // Allow default WooCommerce behavior
 		}
@@ -77,7 +81,7 @@ jQuery(function ($) {
 		$button.prop('disabled', true).text('Processing...');
 
 		// Show loader
-		$('.dfinsell-loader-background, .dfinsell-loader').show();
+		$('.bytenft-onramp-loader-background, .bytenft-onramp-loader').show();
 
 		var data = $form.serialize();
 
@@ -127,11 +131,11 @@ jQuery(function ($) {
 					// API call when popup closes
 					$.ajax({
 						type: 'POST',
-						url: dfinsell_params.ajax_url, // Ensure this is localized correctly
+						url: bytenft_onramp_params.ajax_url, // Ensure this is localized correctly
 						data: {
 							action: 'popup_closed_event',
 							order_id: orderId,
-							security: dfinsell_params.dfinsell_nonce, // Ensure this is valid
+							security: bytenft_onramp_params.bytenft_onramp_nonce, // Ensure this is valid
 						},
 						dataType: 'json',
 						cache: false,
@@ -162,11 +166,11 @@ jQuery(function ($) {
 				paymentStatusInterval = setInterval(function () {
 					$.ajax({
 						type: 'POST',
-						url: dfinsell_params.ajax_url,
+						url: bytenft_onramp_params.ajax_url,
 						data: {
 							action: 'check_payment_status',
 							order_id: orderId,
-							security: dfinsell_params.dfinsell_nonce,
+							security: bytenft_onramp_params.bytenft_onramp_nonce,
 						},
 						dataType: 'json',
 						cache: false,
@@ -194,7 +198,7 @@ jQuery(function ($) {
 	}
 
 	function handleResponse(response, $form) {
-		$('.dfinsell-loader-background, .dfinsell-loader').hide();
+		$('.bytenft-onramp-loader-background, .bytenft-onramp-loader').hide();
 		$('.wc_er').remove();
 
 		try {
@@ -241,6 +245,6 @@ jQuery(function ($) {
 		if ($button) {
 			$button.prop('disabled', false).text(originalButtonText);
 		}
-		$('.dfinsell-loader-background, .dfinsell-loader').hide();
+		$('.bytenft-onramp-loader-background, .bytenft-onramp-loader').hide();
 	}
 });

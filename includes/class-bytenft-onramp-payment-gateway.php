@@ -116,6 +116,8 @@ class BYTENFT_ONRAMP_PAYMENT_GATEWAY extends WC_Payment_Gateway_CC
 				return sanitize_text_field($account);
 			}, $raw_accounts);
 
+			$accStatusApiUrl = $this->get_api_url('/api/check-merchant-status');
+
 			foreach ($accounts as $index => $account) {
 				// Sanitize input
 				$account_title = sanitize_text_field($account['title'] ?? '');
@@ -126,6 +128,26 @@ class BYTENFT_ONRAMP_PAYMENT_GATEWAY extends WC_Payment_Gateway_CC
 				$sandbox_secret_key = sanitize_text_field($account['sandbox_secret_key'] ?? '');
 				$has_sandbox = isset($account['has_sandbox']); // Checkbox handling
 
+				$public_key = $this->sandbox ? $sandbox_public_key : $live_public_key;
+                $secret_key = $this->sandbox ? $sandbox_secret_key : $live_secret_key;
+
+                $merchant_status_data = [
+                    'is_sandbox'     => $this->sandbox,
+                    'api_public_key' => $public_key,
+                    'api_secret_key' => $secret_key,
+                ];
+ 
+                // Use cache for status check
+                $cache_key = 'merchant_status_' . md5($public_key);
+                $merchant_status_response = $this->get_cached_api_response($accStatusApiUrl, $merchant_status_data, $cache_key);
+                if ($merchant_status_response['status'] && $merchant_status_response['status'] == 'error') {
+                  	// translators: %s: The account title.
+					$text = __('Account "%s": Title, Secret key does not match for the given API key and user.', 'bytenft-onramp-payment-gateway');
+					$errors[] = sprintf($text, $account_title);
+                    continue;
+                }
+
+		
 				//  Ignore empty accounts
 				if (empty($account_title) && empty($live_public_key) && empty($live_secret_key) && empty($sandbox_public_key) && empty($sandbox_secret_key)) {
 					continue;
@@ -240,15 +262,15 @@ class BYTENFT_ONRAMP_PAYMENT_GATEWAY extends WC_Payment_Gateway_CC
 				'title' => __('Title', 'bytenft-onramp-payment-gateway'),
 				'type' => 'text',
 				'description' => __('This controls the title which the user sees during checkout.', 'bytenft-onramp-payment-gateway'),
-				'default' => __('Credit/Debit Card', 'bytenft-onramp-payment-gateway'),
+				'default' => __('Pay with Debit Cards (Visa, Mastercard, or Apple Pay)', 'bytenft-onramp-payment-gateway'),
 				'desc_tip' => __('Enter the title of the payment gateway as it will appear to customers during checkout.', 'bytenft-onramp-payment-gateway'),
 			],
 			'description' => [
 				'title' => __('Description', 'bytenft-onramp-payment-gateway'),
 				'type' => 'text',
 				'description' => __('Provide a brief description of the ByteNFT Onramp Payment Gateway option.', 'bytenft-onramp-payment-gateway'),
-				'default' => 'Description of the ByteNFT Onramp Payment Gateway Option.',
-				'desc_tip' => __('Enter a brief description that explains the ByteNFT Onramp Payment Gateway option.', 'bytenft-onramp-payment-gateway'),
+				'default' => 'Pay easily using Visa, Mastercard Debit, Apple Pay, or your Coinbase account. Your payment is instantly converted to USDC and applied to your order — no wallet setup or extra steps required.',
+				'desc_tip' => __('Use Apple Pay for the highest approval success. No signup needed — pay up to $500/week.', 'bytenft-onramp-payment-gateway'),
 			],
 			'instructions' => [
 				'title' => __('Instructions', 'bytenft-onramp-payment-gateway'),
@@ -543,12 +565,13 @@ class BYTENFT_ONRAMP_PAYMENT_GATEWAY extends WC_Payment_Gateway_CC
 			   ========================================================== */
 
 			$public_key = $this->sandbox ? $account['sandbox_public_key'] : $account['live_public_key'];
-
+			$secret_key= $this->sandbox ? $account['sandbox_secret_key'] : $account['live_secret_key'];
 			$accStatusApiUrl = $this->get_api_url('/api/check-merchant-status');
 			$merchant_status_data = [
 			    'is_sandbox'     => $this->sandbox,
 			    'amount'         => $order->get_total(),
 			    'api_public_key' => $public_key,
+				'api_secret_key' => $secret_key,
 			];
 
 			// Use cache for status check
@@ -588,8 +611,6 @@ class BYTENFT_ONRAMP_PAYMENT_GATEWAY extends WC_Payment_Gateway_CC
 			$order->add_order_note(__('Processing Payment Via: ', 'bytenft-onramp-payment-gateway') . $account['title']);
 
 			// **Prepare API Data**
-			$public_key = $this->sandbox ? $account['sandbox_public_key'] : $account['live_public_key'];
-			$secret_key = $this->sandbox ? $account['sandbox_secret_key'] : $account['live_secret_key'];
 			$data = $this->bytenft_onramp_prepare_payment_data($order, $public_key, $secret_key);
 
 			// **Check Transaction Limit**
@@ -1054,7 +1075,7 @@ class BYTENFT_ONRAMP_PAYMENT_GATEWAY extends WC_Payment_Gateway_CC
 			wp_localize_script('bytenft-onramp-js', 'bytenft_onramp_params', [
 				'ajax_url' => admin_url('admin-ajax.php'),
 				'checkout_url' => wc_get_checkout_url(),
-				'dfin_loader' => plugins_url('../assets/images/loader.gif', __FILE__),
+				'bytenft_onramp_loader' => plugins_url('../assets/images/loader.gif', __FILE__),
 				'bytenft_onramp_nonce' => wp_create_nonce('bytenft_onramp_payment'), // Create a nonce for verification
 				'payment_method' => $this->id,
 			]);
@@ -1122,7 +1143,7 @@ class BYTENFT_ONRAMP_PAYMENT_GATEWAY extends WC_Payment_Gateway_CC
 	    $accounts = $this->get_all_accounts();
 
 	    if (empty($accounts)) {
-	        $log_key = 'dfin_log_no_accounts_' . md5($this->id);
+	        $log_key = 'bytenft_onramp_log_no_accounts_' . md5($this->id);
 	        if (false === get_transient($log_key)) {
 	            wc_get_logger()->warning('No payment accounts are available. The payment option will not appear during checkout.', [
 	                'source' => 'bytenft-onramp-payment-gateway'
@@ -1153,11 +1174,12 @@ class BYTENFT_ONRAMP_PAYMENT_GATEWAY extends WC_Payment_Gateway_CC
 
 	    foreach ($accounts as $account) {
 	        $public_key = $this->sandbox ? $account['sandbox_public_key'] : $account['live_public_key'];
-
+			$secret_key = $this->sandbox ? $account['sandbox_secret_key'] : $account['live_secret_key'];
 	        $data = [
 	            'is_sandbox'     => $this->sandbox,
 	            'amount'         => $amount,
 	            'api_public_key' => $public_key,
+				'api_secret_key' => $secret_key,
 	        ];
 
 	        $cache_key = 'bytenft_onramp_daily_limit_' . md5($public_key . $amount);	
@@ -1188,7 +1210,7 @@ class BYTENFT_ONRAMP_PAYMENT_GATEWAY extends WC_Payment_Gateway_CC
 	    }
 
 	    if (!$user_account_active) {
-	        $log_key = 'dfin_log_no_active_accounts_' . md5($this->id);
+	        $log_key = 'bytenft_onramp_log_no_active_accounts_' . md5($this->id);
 	        if (false === get_transient($log_key)) {
 	            wc_get_logger()->warning('Payment gateway is hidden. No payment accounts are currently active or approved for transactions.', [
 	                'source' => 'bytenft-onramp-payment-gateway'
@@ -1201,7 +1223,7 @@ class BYTENFT_ONRAMP_PAYMENT_GATEWAY extends WC_Payment_Gateway_CC
 	    }
 
 	    if ($all_high_priority_accounts_limited) {
-	        $log_key = 'dfin_log_accounts_limited_' . md5($this->id);
+	        $log_key = 'bytenft_onramp_log_accounts_limited_' . md5($this->id);
 	        if (false === get_transient($log_key)) {
 	            wc_get_logger()->warning('Payment gateway is hidden. All available accounts have reached their daily transaction limits.', [
 	                'source' => 'bytenft-onramp-payment-gateway'
@@ -1214,7 +1236,7 @@ class BYTENFT_ONRAMP_PAYMENT_GATEWAY extends WC_Payment_Gateway_CC
 	    }
 
 	    // ✅ At least one account is valid and within limits
-	    $log_key = 'dfin_log_gateway_active_' . md5($this->id);
+	    $log_key = 'bytenft_onramp_log_gateway_active_' . md5($this->id);
 	    if (false === get_transient($log_key)) {
 	        wc_get_logger()->info('Payment gateway is active. At least one account is available and within limits.', [
 	            'source' => 'bytenft-onramp-payment-gateway'
@@ -1382,11 +1404,11 @@ class BYTENFT_ONRAMP_PAYMENT_GATEWAY extends WC_Payment_Gateway_CC
 	}
 
 	/**
-	 * Send an email notification via DfinSell API
+	 * Send an email notification via byteNFT API
 	 */
 	private function send_account_switch_email($oldAccount, $newAccount)
 	{
-		$dfinSellApiUrl = $this->get_api_url('/api/switch-account-email'); // Dfin Sell API Endpoint
+		$bytenftOnrampApiUrl = $this->get_api_url('/api/switch-account-email'); // byteNFT API Endpoint
 
 		// Use the credentials of the old (current) account to authenticate
 		$api_key = $this->sandbox ? $oldAccount['sandbox_public_key'] : $oldAccount['live_public_key'];
@@ -1414,8 +1436,8 @@ class BYTENFT_ONRAMP_PAYMENT_GATEWAY extends WC_Payment_Gateway_CC
 		// Log API request details
 		//wc_get_logger()->info('Request Data: ' . json_encode($emailData), ['source' => 'bytenft-onramp-payment-gateway']);
 
-		// Send data to DFinSell API
-		$response = wp_remote_post($dfinSellApiUrl, [
+		// Send data to byteNFT API
+		$response = wp_remote_post($bytenftOnrampApiUrl, [
 			'method' => 'POST',
 			'timeout' => 30,
 			'body' => json_encode($emailData),
@@ -1441,7 +1463,7 @@ class BYTENFT_ONRAMP_PAYMENT_GATEWAY extends WC_Payment_Gateway_CC
 
 		// Check if the API response has errors
 		if (!empty($response_data['error'])) {
-			wc_get_logger()->error('DFinSell API Error: ' . json_encode($response_data), ['source' => 'bytenft-onramp-payment-gateway']);
+			wc_get_logger()->error('byteNFT API Error: ' . json_encode($response_data), ['source' => 'bytenft-onramp-payment-gateway']);
 			return false;
 		}
 
@@ -1475,7 +1497,7 @@ class BYTENFT_ONRAMP_PAYMENT_GATEWAY extends WC_Payment_Gateway_CC
 		// Filter out used accounts and check correct mode status & keys
 		$available_accounts = array_filter($settings, function ($account) use ($used_accounts, $status_key, $public_key, $secret_key) {
 			return !in_array($account[$public_key], $used_accounts, true)
-				&& isset($account[$status_key]) && $account[$status_key] === 'Active'
+				&& isset($account[$status_key]) && ($account[$status_key] === 'active' || $account[$status_key] === 'Active')
 				&& !empty($account[$public_key]) && !empty($account[$secret_key]);
 		});
 
