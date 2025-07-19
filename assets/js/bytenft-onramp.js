@@ -6,7 +6,6 @@ jQuery(function ($) {
 	var $button;
 	var originalButtonText;
 	var isPollingActive = false;
-	let isHandlerBound = false;
 
 	var loaderUrl = bytenft_onramp_params.bytenft_onramp_loader ? encodeURI(bytenft_onramp_params.bytenft_onramp_loader) : '';
 	$('body').append(
