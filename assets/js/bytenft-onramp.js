@@ -1,86 +1,88 @@
 jQuery(function ($) {
-	var isSubmitting = false; // Flag to track form submission
-	var popupInterval; // Interval ID for checking popup status
-	var paymentStatusInterval; // Interval ID for checking payment status
-	var orderId; // To store the order ID
-	var $button; // To store reference to the submit button
-	var originalButtonText; // To store original button text
-	var isPollingActive = false; // Flag to ensure only one polling interval runs
-	let isHandlerBound = false;
+	var isSubmitting = false;
+	var popupInterval;
+	var paymentStatusInterval;
+	var orderId;
+	var $button;
+	var originalButtonText;
+	var isPollingActive = false;
 
-	// Sanitize loader URL and append loader image to the body
 	var loaderUrl = bytenft_onramp_params.bytenft_onramp_loader ? encodeURI(bytenft_onramp_params.bytenft_onramp_loader) : '';
 	$('body').append(
 		'<div class="bytenft-onramp-loader-background"></div>' +
 		'<div class="bytenft-onramp-loader"><img src="' + loaderUrl + '" alt="Loading..." /></div>'
 	);
 
-	// Disable default WooCommerce checkout for your custom payment method
+	// Prevent default WooCommerce form submission for our method
 	$('form.checkout').on('checkout_place_order', function () {
 		var selectedPaymentMethod = $('input[name="payment_method"]:checked').val();
-
-		// Prevent WooCommerce default behavior for your custom method
 		if (selectedPaymentMethod === bytenft_onramp_params.payment_method) {
-			return false; // Stop WooCommerce default script
+			return false;
 		}
 	});
 
-	// Function to bind the form submit handler
-	function bindCheckoutHandler() {
-		if (isHandlerBound) return;
-		isHandlerBound = true;
+	// Assign or remove custom form ID based on selected method
+	function markCheckoutFormIfNeeded() {
+		var $form = $("form.checkout");
+		var selectedMethod = $form.find('input[name="payment_method"]:checked').val();
+		var expectedId = bytenft_onramp_params.payment_method + '-checkout-form';
 
-		// Unbind the previous handler before rebinding
-		$("form.checkout").off("submit.bytenft-onramp").on("submit.bytenft-onramp", function (e) {
-			// Check if the custom payment method is selected
+		if (selectedMethod === bytenft_onramp_params.payment_method) {
+			$form.attr('id', expectedId);
+		} else {
+			// Only remove the ID if it matches ours
+			if ($form.attr('id') === expectedId) {
+				$form.removeAttr('id');
+			}
+		}
+	}
+
+	function bindCheckoutHandler() {
+		var formId = '#' + bytenft_onramp_params.payment_method + '-checkout-form';
+		$(formId).off("submit.bytenft-onramp").on("submit.bytenft-onramp", function (e) {
 			if ($(this).find('input[name="payment_method"]:checked').val() === bytenft_onramp_params.payment_method) {
 				handleFormSubmit.call(this, e);
-				return false; // Prevent other handlers
+				return false;
 			}
 		});
 	}
 
-	// Rebind after checkout updates
+	// Handle WooCommerce hooks
 	$(document.body).on("updated_checkout", function () {
-		// Unbind to be safe, then rebind
-		$("form.checkout").off("submit.bytenft-onramp");
-		isHandlerBound = false;
+		markCheckoutFormIfNeeded();
 		bindCheckoutHandler();
 	});
 
+	$(document.body).on("change", 'input[name="payment_method"]', function () {
+		markCheckoutFormIfNeeded();
+		bindCheckoutHandler();
+	});
 
-	// Initial binding of the form submit handler
+	// Initial binding
+	markCheckoutFormIfNeeded();
 	bindCheckoutHandler();
 
-	// Function to handle form submission
 	function handleFormSubmit(e) {
-
-		e.preventDefault(); // Prevent the form from submitting if already in progress
-
+		e.preventDefault();
 		var $form = $(this);
 
-		// If a submission is already in progress, prevent further submissions
 		if (isSubmitting) {
 			console.warn("Checkout already submitting...");
 			return false;
 		}
 
-		// Set the flag to true to prevent further submissions
 		isSubmitting = true;
 
 		var selectedPaymentMethod = $form.find('input[name="payment_method"]:checked').val();
-
 		if (selectedPaymentMethod !== bytenft_onramp_params.payment_method) {
-			isSubmitting = false; // Reset the flag if not using the custom payment method
-			return true; // Allow default WooCommerce behavior
+			isSubmitting = false;
+			return true;
 		}
 
-		// Disable the submit button immediately to prevent further clicks
 		$button = $form.find('button[type="submit"][name="woocommerce_checkout_place_order"]');
 		originalButtonText = $button.text();
 		$button.prop('disabled', true).text('Processing...');
 
-		// Show loader
 		$('.bytenft-onramp-loader-background, .bytenft-onramp-loader').show();
 
 		var data = $form.serialize();
@@ -97,11 +99,10 @@ jQuery(function ($) {
 				handleError($form);
 			},
 			complete: function () {
-				isSubmitting = false; // Always reset isSubmitting to false in case of success or error
+				isSubmitting = false;
 			},
 		});
 
-		e.preventDefault(); // Prevent default form submission
 		return false;
 	}
 
@@ -118,7 +119,6 @@ jQuery(function ($) {
 		);
 
 		if (!popupWindow || popupWindow.closed || typeof popupWindow.closed === 'undefined') {
-			// Redirect to the payment link if popup was blocked
 			window.location.href = sanitizedPaymentLink;
 			resetButton();
 		} else {
@@ -126,32 +126,21 @@ jQuery(function ($) {
 				if (popupWindow.closed) {
 					clearInterval(popupInterval);
 					clearInterval(paymentStatusInterval);
-					isPollingActive = false; // Reset polling active flag when popup closes
+					isPollingActive = false;
 
-					// API call when popup closes
 					$.ajax({
 						type: 'POST',
-						url: bytenft_onramp_params.ajax_url, // Ensure this is localized correctly
+						url: bytenft_onramp_params.ajax_url,
 						data: {
 							action: 'popup_closed_event',
 							order_id: orderId,
-							security: bytenft_onramp_params.bytenft_onramp_nonce, // Ensure this is valid
+							security: bytenft_onramp_params.bytenft_onramp_nonce,
 						},
 						dataType: 'json',
-						cache: false,
-						processData: true,
 						success: function (response) {
-							if (response.success === true) {
-								clearInterval(paymentStatusInterval);
-								clearInterval(popupInterval);
-								if (response.data && response.data.redirect_url) {
-									window.location.href = response.data.redirect_url;
-								}
+							if (response.success && response.data.redirect_url) {
+								window.location.href = response.data.redirect_url;
 							}
-							isPollingActive = false; // Reset polling active flag after completion
-						},
-						error: function (xhr, status, error) {
-							console.error("AJAX Error: ", error);
 						},
 						complete: function () {
 							resetButton();
@@ -160,7 +149,6 @@ jQuery(function ($) {
 				}
 			}, 500);
 
-			// Start polling only if it's not already active
 			if (!isPollingActive) {
 				isPollingActive = true;
 				paymentStatusInterval = setInterval(function () {
@@ -173,24 +161,16 @@ jQuery(function ($) {
 							security: bytenft_onramp_params.bytenft_onramp_nonce,
 						},
 						dataType: 'json',
-						cache: false,
-						processData: true,
 						success: function (statusResponse) {
-							if (statusResponse.data.status === 'success') {
+							if (statusResponse.data.status === 'success' || statusResponse.data.status === 'failed') {
 								clearInterval(paymentStatusInterval);
 								clearInterval(popupInterval);
-								if (statusResponse.data && statusResponse.data.redirect_url) {
+								if (statusResponse.data.redirect_url) {
 									window.location.href = statusResponse.data.redirect_url;
 								}
-							} else if (statusResponse.data.status === 'failed') {
-								clearInterval(paymentStatusInterval);
-								clearInterval(popupInterval);
-								if (statusResponse.data && statusResponse.data.redirect_url) {
-									window.location.href = statusResponse.data.redirect_url;
-								}
+								isPollingActive = false;
 							}
-							isPollingActive = false; // Reset polling active flag after completion
-						},
+						}
 					});
 				}, 5000);
 			}
@@ -206,8 +186,7 @@ jQuery(function ($) {
 				orderId = response.order_id;
 				var paymentLink = response.payment_link;
 				openPaymentLink(paymentLink);
-				$form.removeAttr('data-result');
-				$form.removeAttr('data-redirect-url');
+				$form.removeAttr('data-result').removeAttr('data-redirect-url');
 			} else {
 				throw response.messages || 'An error occurred during checkout.';
 			}
@@ -219,24 +198,14 @@ jQuery(function ($) {
 	function handleError($form) {
 		$('.wc_er').remove();
 		$form.prepend('<div class="wc_er">An error occurred during checkout. Please try again.</div>');
-		$('html, body').animate(
-			{
-				scrollTop: $('.wc_er').offset().top - 300,
-			},
-			500
-		);
+		$('html, body').animate({ scrollTop: $('.wc_er').offset().top - 300 }, 500);
 		resetButton();
 	}
 
 	function displayError(err, $form) {
 		$('.wc_er').remove();
 		$form.prepend('<div class="wc_er">' + err + '</div>');
-		$('html, body').animate(
-			{
-				scrollTop: $('.wc_er').offset().top - 300,
-			},
-			500
-		);
+		$('html, body').animate({ scrollTop: $('.wc_er').offset().top - 300 }, 500);
 		resetButton();
 	}
 
