@@ -137,17 +137,6 @@ class BYTENFT_ONRAMP_PAYMENT_GATEWAY extends WC_Payment_Gateway_CC
                     'api_secret_key' => $secret_key,
                 ];
  
-                // Use cache for status check
-                $cache_key = 'merchant_status_' . md5($public_key);
-                $merchant_status_response = $this->get_cached_api_response($accStatusApiUrl, $merchant_status_data, $cache_key);
-                if ($merchant_status_response['status'] && $merchant_status_response['status'] == 'error') {
-                  	// translators: %s: The account title.
-					$text = __('Account "%s": Title, Secret key does not match for the given API key and user.', 'bytenft-onramp-payment-gateway');
-					$errors[] = sprintf($text, $account_title);
-                    continue;
-                }
-
-		
 				//  Ignore empty accounts
 				if (empty($account_title) && empty($live_public_key) && empty($live_secret_key) && empty($sandbox_public_key) && empty($sandbox_secret_key)) {
 					continue;
