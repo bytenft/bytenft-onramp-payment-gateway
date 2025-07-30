@@ -1,4 +1,4 @@
-.bytenft-onramp-loader {
+.bnftonramp-loader {
   position: fixed;
   display: none;
   left: 0;
@@ -9,7 +9,7 @@
   z-index: 9999;
 }
 
-.bytenft-onramp-loader img {
+.bnftonramp-loader img {
   margin: auto;
   position: absolute;
   top: 0;
@@ -20,7 +20,7 @@
   border-radius: 100%;
 }
 
-.bytenft-onramp-loader-background {
+.bnftonramp-loader-background {
   display: none;
   position: fixed;
   top: 0;

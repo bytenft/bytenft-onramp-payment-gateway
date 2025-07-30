@@ -22,40 +22,51 @@ class BYTENFT_ONRAMP_PAYMENT_GATEWAY_REST_API
 		$this->logger = wc_get_logger();
 	}
 
-	public function bytenft_onramp_register_routes()
+	public function bnftonramp_register_routes()
 	{
 		// Log incoming request with sanitized parameters
 		add_action('rest_api_init', function () {
 			register_rest_route('bytenft-onramp/v1', '/data', array(
 				'methods' => 'POST',
-				'callback' => array($this, 'bytenft_onramp_handle_api_request'),
+				'callback' => array($this, 'bnftonramp_handle_api_request'),
 				'permission_callback' => '__return_true',
 			));
 		});
 	}
 
-	private function bytenft_onramp_verify_api_key($api_key)
+	private function bnftonramp_verify_api_key($api_key)
 	{
 		// Sanitize the API key parameter early
 		$api_key = sanitize_text_field($api_key);
 
 		// Get ByteNFT Onramp settings
-		$bytenft_onramp_settings = get_option('woocommerce_bytenft_onramp_payment_gateway_accounts');
-		$bytenft_settings = get_option('woocommerce_bytenft_onramp_settings');
+		$bnftonramp_settings = get_option('woocommerce_bnftonramp_payment_gateway_accounts');
+		$bytenft_settings = get_option('woocommerce_bnftonramp_settings');
 
-		if (!$bytenft_onramp_settings || empty($bytenft_onramp_settings)) {
+		if (!$bnftonramp_settings || empty($bnftonramp_settings)) {
 			return false; // No accounts available
 		}
 
-		$accounts = $bytenft_onramp_settings;
+		$accounts = $bnftonramp_settings;
 
 		$sandbox = isset($bytenft_settings['sandbox']) && $bytenft_settings['sandbox'] === 'yes';
+
+		$this->logger->info('Accounts to evaluate inside bnftonramp_verify_api_key fnc :', [
+		    'source' => 'bytenft-onramp-payment-gateway',
+		    'context' => $accounts,
+			'sandbox' => $sandbox,
+			'$bytenft_settings'=>$bytenft_settings
+		]);
 
 		foreach ($accounts as $account) {
 			$public_key = $sandbox ? sanitize_text_field($account['sandbox_public_key']) : sanitize_text_field($account['live_public_key']);
 
+			$this->logger->info(' check public_key ::  '.$public_key, array('source' => 'bytenft-onramp-payment-gateway'));
+
 			// Use a secure hash comparison
 			if (!empty($public_key) && hash_equals($public_key, $api_key)) {
+				$this->logger->info('keys are matched ', array('source' => 'bytenft-onramp-payment-gateway'));
+				
 				return true;
 			}
 		}
@@ -68,7 +79,7 @@ class BYTENFT_ONRAMP_PAYMENT_GATEWAY_REST_API
 	 * @param WP_REST_Request $request The REST API request object.
 	 * @return WP_REST_Response The response object.
 	 */
-	public function bytenft_onramp_handle_api_request(WP_REST_Request $request)
+	public function bnftonramp_handle_api_request(WP_REST_Request $request)
 	{
 		$parameters = $request->get_json_params();
 
@@ -86,7 +97,7 @@ class BYTENFT_ONRAMP_PAYMENT_GATEWAY_REST_API
 		]);
 
 		// Validate API key first to secure the endpoint.
-		if (!$this->bytenft_onramp_verify_api_key(base64_decode($api_key))) {
+		if (!$this->bnftonramp_verify_api_key(base64_decode($api_key))) {
 			$this->logger->error('Unauthorized access attempt due to invalid API key.', array('source' => 'bytenft-onramp-payment-gateway'));
 			return new WP_REST_Response(['error' => 'Unauthorized'], 401);
 		}
@@ -105,7 +116,7 @@ class BYTENFT_ONRAMP_PAYMENT_GATEWAY_REST_API
 		}
 
 		// Retrieve the stored payment token (pay_id) from the order meta.
-		$stored_payment_token = $order->get_meta('_bytenft_onramp_pay_id');
+		$stored_payment_token = $order->get_meta('_bnftonramp_pay_id');
 
 		// Crucial check: Ensure the received pay_id matches the one stored with the order.
 		// This prevents unauthorized updates to orders by supplying a valid order_id but a different pay_id.

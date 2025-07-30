@@ -7,16 +7,16 @@ jQuery(function ($) {
 	var originalButtonText;
 	var isPollingActive = false;
 
-	var loaderUrl = bytenft_onramp_params.bytenft_onramp_loader ? encodeURI(bytenft_onramp_params.bytenft_onramp_loader) : '';
+	var loaderUrl = bnftonramp_params.bnftonramp_loader ? encodeURI(bnftonramp_params.bnftonramp_loader) : '';
 	$('body').append(
-		'<div class="bytenft-onramp-loader-background"></div>' +
-		'<div class="bytenft-onramp-loader"><img src="' + loaderUrl + '" alt="Loading..." /></div>'
+		'<div class="bnftonramp-loader-background"></div>' +
+		'<div class="bnftonramp-loader"><img src="' + loaderUrl + '" alt="Loading..." /></div>'
 	);
 
 	// Prevent default WooCommerce form submission for our method
 	$('form.checkout').on('checkout_place_order', function () {
 		var selectedPaymentMethod = $('input[name="payment_method"]:checked').val();
-		if (selectedPaymentMethod === bytenft_onramp_params.payment_method) {
+		if (selectedPaymentMethod === bnftonramp_params.payment_method) {
 			return false;
 		}
 	});
@@ -25,9 +25,9 @@ jQuery(function ($) {
 	function markCheckoutFormIfNeeded() {
 		var $form = $("form.checkout");
 		var selectedMethod = $form.find('input[name="payment_method"]:checked').val();
-		var expectedId = bytenft_onramp_params.payment_method + '-checkout-form';
+		var expectedId = bnftonramp_params.payment_method + '-checkout-form';
 
-		if (selectedMethod === bytenft_onramp_params.payment_method) {
+		if (selectedMethod === bnftonramp_params.payment_method) {
 			$form.attr('id', expectedId);
 		} else {
 			// Only remove the ID if it matches ours
@@ -38,9 +38,9 @@ jQuery(function ($) {
 	}
 
 	function bindCheckoutHandler() {
-		var formId = '#' + bytenft_onramp_params.payment_method + '-checkout-form';
+		var formId = '#' + bnftonramp_params.payment_method + '-checkout-form';
 		$(formId).off("submit.bytenft-onramp").on("submit.bytenft-onramp", function (e) {
-			if ($(this).find('input[name="payment_method"]:checked').val() === bytenft_onramp_params.payment_method) {
+			if ($(this).find('input[name="payment_method"]:checked').val() === bnftonramp_params.payment_method) {
 				handleFormSubmit.call(this, e);
 				return false;
 			}
@@ -74,7 +74,7 @@ jQuery(function ($) {
 		isSubmitting = true;
 
 		var selectedPaymentMethod = $form.find('input[name="payment_method"]:checked').val();
-		if (selectedPaymentMethod !== bytenft_onramp_params.payment_method) {
+		if (selectedPaymentMethod !== bnftonramp_params.payment_method) {
 			isSubmitting = false;
 			return true;
 		}
@@ -83,7 +83,7 @@ jQuery(function ($) {
 		originalButtonText = $button.text();
 		$button.prop('disabled', true).text('Processing...');
 
-		$('.bytenft-onramp-loader-background, .bytenft-onramp-loader').show();
+		$('.bnftonramp-loader-background, .bnftonramp-loader').show();
 
 		var data = $form.serialize();
 
@@ -130,11 +130,11 @@ jQuery(function ($) {
 
 					$.ajax({
 						type: 'POST',
-						url: bytenft_onramp_params.ajax_url,
+						url: bnftonramp_params.ajax_url,
 						data: {
 							action: 'popup_closed_event',
 							order_id: orderId,
-							security: bytenft_onramp_params.bytenft_onramp_nonce,
+							security: bnftonramp_params.bnftonramp_nonce,
 						},
 						dataType: 'json',
 						success: function (response) {
@@ -154,11 +154,11 @@ jQuery(function ($) {
 				paymentStatusInterval = setInterval(function () {
 					$.ajax({
 						type: 'POST',
-						url: bytenft_onramp_params.ajax_url,
+						url: bnftonramp_params.ajax_url,
 						data: {
 							action: 'check_payment_status',
 							order_id: orderId,
-							security: bytenft_onramp_params.bytenft_onramp_nonce,
+							security: bnftonramp_params.bnftonramp_nonce,
 						},
 						dataType: 'json',
 						success: function (statusResponse) {
@@ -178,7 +178,7 @@ jQuery(function ($) {
 	}
 
 	function handleResponse(response, $form) {
-		$('.bytenft-onramp-loader-background, .bytenft-onramp-loader').hide();
+		$('.bnftonramp-loader-background, .bnftonramp-loader').hide();
 		$('.wc_er').remove();
 
 		try {
@@ -214,6 +214,6 @@ jQuery(function ($) {
 		if ($button) {
 			$button.prop('disabled', false).text(originalButtonText);
 		}
-		$('.bytenft-onramp-loader-background, .bytenft-onramp-loader').hide();
+		$('.bnftonramp-loader-background, .bnftonramp-loader').hide();
 	}
 });

@@ -3,7 +3,7 @@ Contributors: ByteNFT Onramp
 Tags: woocommerce, payment gateway, fiat, ByteNFT Onramp
 Requires at least: 5.0
 Tested up to: 6.8
-Stable tag: 1.0.1
+Stable tag: 1.0.2
 License: GPLv3 or later
 License URI: https://www.gnu.org/licenses/gpl-3.0.html
 
@@ -27,6 +27,11 @@ Visit the DFin website and log in to your account. Navigate to Developer Setting
 
 == Changelog ==
 
+= 1.0.2 =
+* Fixed incorrect option key lookup for sandbox/live mode.
+* Improved settings consistency between frontend and admin.
+* Code cleanup in REST API key validation.
+
 = 1.0.1 =
 * Fixed: Issues with multiple account detection and fallback.
 * Improved: Handling of sandbox/live account modes.
@@ -35,6 +40,9 @@ Visit the DFin website and log in to your account. Navigate to Developer Setting
 * Initial release.
 
 == Upgrade Notice ==
+
+= 1.0.2 =
+Fixes an issue with sandbox/live settings not loading properly during API verification. Recommended for all users.
 
 = 1.0.1 =
 This update improves support for multiple merchant accounts and better handles fallback logic. Upgrade is recommended.

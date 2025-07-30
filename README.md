@@ -142,6 +142,13 @@ The official documentation for this plugin is available at: [https://www.bytenft
 
 ## Changelog
 
+## Version 1.0.2
+
+### What's New / Fixed
+- Fixed incorrect option key lookup causing REST API sandbox/live mode misbehavior.
+- Improved internal consistency by aligning `get_option()` calls with stored option keys.
+- Minor code cleanup in settings processing.
+
 ### Version 1.0.1
 - Fixed issues with handling multiple merchant accounts
 - Improved sandbox/live account fallback logic
