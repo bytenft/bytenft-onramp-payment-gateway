@@ -162,7 +162,7 @@ jQuery(function ($) {
 						},
 						dataType: 'json',
 						success: function (statusResponse) {
-							if (statusResponse.data.status === 'success' || statusResponse.data.status === 'failed') {
+							if (statusResponse.data.status === 'success' || statusResponse.data.status === 'failed' || statusResponse.data.status === 'cancelled') {
 								clearInterval(paymentStatusInterval);
 								clearInterval(popupInterval);
 								if (statusResponse.data.redirect_url) {
