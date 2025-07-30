@@ -133,7 +133,7 @@ class BYTENFT_ONRAMP_PAYMENT_GATEWAY_REST_API
 			// Check if the current order status allows for a transition to 'completed' or 'processing'.
 			if (in_array($current_order_status, ['pending', 'failed'])) {
 				// Get the configured order status from the payment gateway settings for successful payments.
-				$gateway_id = 'bytenft-onramp';
+				$gateway_id = 'bnftonramp';
 				$payment_gateways = WC()->payment_gateways->payment_gateways();
 
 				if (isset($payment_gateways[$gateway_id])) {
