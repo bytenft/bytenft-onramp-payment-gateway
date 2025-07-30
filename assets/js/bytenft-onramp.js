@@ -162,13 +162,22 @@ jQuery(function ($) {
 						},
 						dataType: 'json',
 						success: function (statusResponse) {
-							if (statusResponse.data.status === 'success' || statusResponse.data.status === 'failed' || statusResponse.data.status === 'cancelled') {
+							if (['success', 'failed', 'cancelled'].includes(statusResponse.data.status)) {
 								clearInterval(paymentStatusInterval);
 								clearInterval(popupInterval);
+								isPollingActive = false;
+
+								try {
+									if (popupWindow && !popupWindow.closed) {
+										popupWindow.close();
+									}
+								} catch (e) {
+									console.warn('Unable to close popup window:', e);
+								}
+
 								if (statusResponse.data.redirect_url) {
 									window.location.href = statusResponse.data.redirect_url;
 								}
-								isPollingActive = false;
 							}
 						}
 					});
