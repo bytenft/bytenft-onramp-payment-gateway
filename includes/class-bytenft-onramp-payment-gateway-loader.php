@@ -40,20 +40,20 @@ class BYTENFT_ONRAMP_PAYMENT_GATEWAY_Loader
 
 		$this->admin_notices = new BYTENFT_ONRAMP_PAYMENT_GATEWAY_Admin_Notices();
 
-		add_action('admin_init', [$this, 'bytenft_onramp_handle_environment_check']);
+		add_action('admin_init', [$this, 'bnftonramp_handle_environment_check']);
 		add_action('admin_notices', [$this->admin_notices, 'display_notices']);
-		add_action('plugins_loaded', [$this, 'bytenft_onramp_init'], 11);
+		add_action('plugins_loaded', [$this, 'bnftonramp_init'], 11);
 
 		// Register the AJAX action callback for checking payment status
-		add_action('wp_ajax_check_payment_status', array($this, 'bytenft_onramp_handle_check_payment_status_request'));
-		add_action('wp_ajax_nopriv_check_payment_status', array($this, 'bytenft_onramp_handle_check_payment_status_request'));
+		add_action('wp_ajax_check_payment_status', array($this, 'bnftonramp_handle_check_payment_status_request'));
+		add_action('wp_ajax_nopriv_check_payment_status', array($this, 'bnftonramp_handle_check_payment_status_request'));
 
 		add_action('wp_ajax_popup_closed_event', array($this, 'handle_popup_close'));
 		add_action('wp_ajax_nopriv_popup_closed_event', array($this, 'handle_popup_close'));
 
-		add_action('wp_ajax_bytenft-onramp-manual-sync', [$this, 'bytenft_onramp_manual_sync_callback']);
-		add_filter('cron_schedules', [$this, 'bytenft_onramp_add_cron_interval']);
-		add_action('bytenft_onramp_cron_event', [$this, 'handle_cron_event']);
+		add_action('wp_ajax_bnftonramp_manual_sync', [$this, 'bnftonramp_manual_sync_callback']);
+		add_filter('cron_schedules', [$this, 'bnftonramp_add_cron_interval']);
+		add_action('bnftonramp_cron_event', [$this, 'handle_cron_event']);
 	}
 
 
@@ -61,32 +61,32 @@ class BYTENFT_ONRAMP_PAYMENT_GATEWAY_Loader
 	 * Initializes the plugin.
 	 * This method is hooked into 'plugins_loaded' action.
 	 */
-	public function bytenft_onramp_init()
+	public function bnftonramp_init()
 	{
 		// Check if the environment is compatible
-		$environment_warning = bytenft_onramp_check_system_requirements();
+		$environment_warning = bnftonramp_check_system_requirements();
 		if ($environment_warning) {
 			return;
 		}
 
 		// Initialize gateways
-		$this->bytenft_onramp_init_gateways();
+		$this->bnftonramp_init_gateways();
 
 		// Initialize REST API
 		$rest_api = BYTENFT_ONRAMP_PAYMENT_GATEWAY_REST_API::get_instance();
-		$rest_api->bytenft_onramp_register_routes();
+		$rest_api->bnftonramp_register_routes();
 
 		// Add plugin action links
-		add_filter('plugin_action_links_' . plugin_basename(BYTENFT_ONRAMP_PAYMENT_GATEWAY_FILE), [$this, 'bytenft_onramp_plugin_action_links']);
+		add_filter('plugin_action_links_' . plugin_basename(BYTENFT_ONRAMP_PAYMENT_GATEWAY_FILE), [$this, 'bnftonramp_plugin_action_links']);
 
 		// Add plugin row meta
-		add_filter('plugin_row_meta', [$this, 'bytenft_onramp_plugin_row_meta'], 10, 2);
+		add_filter('plugin_row_meta', [$this, 'bnftonramp_plugin_row_meta'], 10, 2);
 	}
 
 	/**
 	 * Initialize gateways.
 	 */
-	private function bytenft_onramp_init_gateways()
+	private function bnftonramp_init_gateways()
 	{
 		if (!class_exists('WC_Payment_Gateway')) {
 			return;
@@ -111,10 +111,10 @@ class BYTENFT_ONRAMP_PAYMENT_GATEWAY_Loader
 	 * @param array $links
 	 * @return array
 	 */
-	public function bytenft_onramp_plugin_action_links($links)
+	public function bnftonramp_plugin_action_links($links)
 	{
 		$plugin_links = [
-			'<a href="' . esc_url(admin_url('admin.php?page=wc-settings&tab=checkout&section=bytenft-onramp')) . '">' . esc_html__('Settings', 'bytenft-onramp-payment-gateway') . '</a>',
+			'<a href="' . esc_url(admin_url('admin.php?page=wc-settings&tab=checkout&section=bnftonramp')) . '">' . esc_html__('Settings', 'bytenft-onramp-payment-gateway') . '</a>',
 		];
 
 		return array_merge($plugin_links, $links);
@@ -126,12 +126,12 @@ class BYTENFT_ONRAMP_PAYMENT_GATEWAY_Loader
 	 * @param string $file
 	 * @return array
 	 */
-	public function bytenft_onramp_plugin_row_meta($links, $file)
+	public function bnftonramp_plugin_row_meta($links, $file)
 	{
 		if (plugin_basename(BYTENFT_ONRAMP_PAYMENT_GATEWAY_FILE) === $file) {
 			$row_meta = [
-				'docs'    => '<a href="' . esc_url(apply_filters('bytenft_onramp_docs_url', 'https://www.bytenft.xyz/api/docs/wordpress-plugin')) . '" target="_blank">' . esc_html__('Documentation', 'bytenft-onramp-payment-gateway') . '</a>',
-				'support' => '<a href="' . esc_url(apply_filters('bytenft_onramp_support_url', 'https://www.bytenft.xyz/reach-out')) . '" target="_blank">' . esc_html__('Support', 'bytenft-onramp-payment-gateway') . '</a>',
+				'docs'    => '<a href="' . esc_url(apply_filters('bnftonramp_docs_url', 'https://www.bytenft.xyz/api/docs/wordpress-plugin')) . '" target="_blank">' . esc_html__('Documentation', 'bytenft-onramp-payment-gateway') . '</a>',
+				'support' => '<a href="' . esc_url(apply_filters('bnftonramp_support_url', 'https://www.bytenft.xyz/reach-out')) . '" target="_blank">' . esc_html__('Support', 'bytenft-onramp-payment-gateway') . '</a>',
 			];
 
 			$links = array_merge($links, $row_meta);
@@ -143,12 +143,12 @@ class BYTENFT_ONRAMP_PAYMENT_GATEWAY_Loader
 	/**
 	 * Check the environment and display notices if necessary.
 	 */
-	public function bytenft_onramp_handle_environment_check()
+	public function bnftonramp_handle_environment_check()
 	{
-		$environment_warning = bytenft_onramp_check_system_requirements();
+		$environment_warning = bnftonramp_check_system_requirements();
 		if ($environment_warning) {
 			// Sanitize the environment warning before displaying it
-			$this->admin_notices->bytenft_onramp_add_notice('error', 'error', sanitize_text_field($environment_warning));
+			$this->admin_notices->bnftonramp_add_notice('error', 'error', sanitize_text_field($environment_warning));
 		}
 	}
 
@@ -156,14 +156,14 @@ class BYTENFT_ONRAMP_PAYMENT_GATEWAY_Loader
 	 * Handle the AJAX request for checking payment status.
 	 * @param $request
 	 */
-	public function bytenft_onramp_handle_check_payment_status_request($request)
+	public function bnftonramp_handle_check_payment_status_request($request)
 	{
 		// Verify nonce for security (recommended)
 		// Sanitize and unslash the 'security' value
 		$security = isset($_POST['security']) ? sanitize_text_field(wp_unslash($_POST['security'])) : '';
 
 		// Check the nonce for security
-		if (empty($security) || !wp_verify_nonce($security, 'bytenft_onramp_payment')) {
+		if (empty($security) || !wp_verify_nonce($security, 'bnftonramp_payment')) {
 			wp_send_json_error(['message' => 'Nonce verification failed.']);
 			wp_die();
 		}
@@ -175,7 +175,7 @@ class BYTENFT_ONRAMP_PAYMENT_GATEWAY_Loader
 		}
 
 		// Call the function to check payment status with the validated order ID
-		return $this->bytenft_onramp_check_payment_status($order_id);
+		return $this->bnftonramp_check_payment_status($order_id);
 	}
 
 	/**
@@ -183,7 +183,7 @@ class BYTENFT_ONRAMP_PAYMENT_GATEWAY_Loader
 	 * @param int $order_id
 	 * @return WP_REST_Response
 	 */
-	public function bytenft_onramp_check_payment_status($order_id)
+	public function bnftonramp_check_payment_status($order_id)
 	{
 		// Get the order details
 		$order = wc_get_order($order_id);
@@ -191,6 +191,15 @@ class BYTENFT_ONRAMP_PAYMENT_GATEWAY_Loader
 		if (!$order) {
 			return new WP_REST_Response(['error' => esc_html__('Order not found', 'bytenft-onramp-payment-gateway')], 404);
 		}
+
+		wc_get_logger()->info(' check payment status fnc response ', [
+				'source'  => 'bytenft-onramp-payment-gateway',
+				'context' => [
+					'order_id'           => $order_id,
+					'order_status' => $order->get_status()
+				],
+			]);
+
 
 		$payment_return_url = esc_url($order->get_checkout_order_received_url());
 
@@ -210,8 +219,8 @@ class BYTENFT_ONRAMP_PAYMENT_GATEWAY_Loader
 			exit;
 		}
 
-		if ($order->has_status('canceled')) {
-			wp_send_json_success(['status' => 'canceled', 'redirect_url' => $payment_return_url]);
+		if ($order->has_status('cancelled') || $order->has_status('canceled')) {
+			wp_send_json_success(['status' => 'cancelled', 'redirect_url' => $payment_return_url]);
 			exit;
 		}
 
@@ -231,7 +240,7 @@ class BYTENFT_ONRAMP_PAYMENT_GATEWAY_Loader
 		$security = isset($_POST['security']) ? sanitize_text_field(wp_unslash($_POST['security'])) : '';
 
 		// Check the nonce for security
-		if (empty($security) || !wp_verify_nonce($security, 'bytenft_onramp_payment')) {
+		if (empty($security) || !wp_verify_nonce($security, 'bnftonramp_payment')) {
 			wp_send_json_error(['message' => 'Nonce verification failed.']);
 			wp_die();
 		}
@@ -255,7 +264,7 @@ class BYTENFT_ONRAMP_PAYMENT_GATEWAY_Loader
 		}
 
 		//Get uuid from WP
-		$payment_token = $order->get_meta('_bytenft_onramp_pay_id');
+		$payment_token = $order->get_meta('_bnftonramp_pay_id');
 
 		// Proceed only if the order status is 'pending'
 		if ($order->get_status() === 'pending') {
@@ -367,7 +376,7 @@ class BYTENFT_ONRAMP_PAYMENT_GATEWAY_Loader
      */
 
 
-	public function bytenft_onramp_add_cron_interval($schedules)
+	public function bnftonramp_add_cron_interval($schedules)
 	{
 		$schedules['every_two_hours'] = array(
 			'interval' => 2 * 60 * 60, // 2 hours in seconds = 7200
@@ -381,19 +390,19 @@ class BYTENFT_ONRAMP_PAYMENT_GATEWAY_Loader
 		wc_get_logger()->info('Automatic payment status checks have been enabled.', ['source' => 'bytenft-onramp-payment-gateway']);
 
 		// Clear existing scheduled event if it exists
-		$timestamp = wp_next_scheduled('bytenft_onramp_cron_event');
+		$timestamp = wp_next_scheduled('bnftonramp_cron_event');
 		if ($timestamp) {
-			wp_unschedule_event($timestamp, 'bytenft_onramp_cron_event');
+			wp_unschedule_event($timestamp, 'bnftonramp_cron_event');
 		}
 
 		// Schedule with new interval
-		wp_schedule_event(time(), 'every_two_hours', 'bytenft_onramp_cron_event');
+		wp_schedule_event(time(), 'every_two_hours', 'bnftonramp_cron_event');
 	}
 
 	function deactivate_cron_job()
 	{
 		wc_get_logger()->info('Automatic payment status checks have been disabled.', ['source' => 'bytenft-onramp-payment-gateway']);
-		wp_clear_scheduled_hook('bytenft_onramp_cron_event');
+		wp_clear_scheduled_hook('bnftonramp_cron_event');
 	}
 
 
@@ -401,7 +410,7 @@ class BYTENFT_ONRAMP_PAYMENT_GATEWAY_Loader
 	{
 		$logger_context = ['source' => 'bytenft-onramp-payment-gateway'];
 
-		$accounts = get_option('woocommerce_bytenft_onramp_payment_gateway_accounts');
+		$accounts = get_option('woocommerce_bnftonramp_payment_gateway_accounts');
 		if (is_string($accounts)) {
 			$unserialized = maybe_unserialize($accounts);
 			$accounts = is_array($unserialized) ? $unserialized : [];
@@ -501,7 +510,7 @@ class BYTENFT_ONRAMP_PAYMENT_GATEWAY_Loader
 
 		if (!empty($statusSummary)) {
 			if ($updated) {
-				update_option('woocommerce_bytenft_onramp_payment_gateway_accounts', $accounts);
+				update_option('woocommerce_bnftonramp_payment_gateway_accounts', $accounts);
 
 				wc_get_logger()->info('Payment account statuses were successfully updated after syncing.', [
 					'source'  => 'bytenft-onramp-payment-gateway',
@@ -521,11 +530,11 @@ class BYTENFT_ONRAMP_PAYMENT_GATEWAY_Loader
 	}
 
 
-	function bytenft_onramp_manual_sync_callback()
+	function bnftonramp_manual_sync_callback()
 	{
 		$logger_context = ['source' => 'bytenft-onramp-payment-gateway'];
 		// Verify nonce first
-		if (!check_ajax_referer('bytenft_onramp_sync_nonce', 'nonce', false)) {
+		if (!check_ajax_referer('bnftonramp_sync_nonce', 'nonce', false)) {
 			wc_get_logger()->error('Security validation failed during manual sync.', $logger_context);
 			wp_send_json_error([
 				'message' => __('Security check failed. Please refresh the page and try again.', 'bytenft-onramp-payment-gateway')

@@ -5,7 +5,7 @@
  *
  * @return string|false
  */
-function bytenft_onramp_check_system_requirements()
+function bnftonramp_check_system_requirements()
 {
 	if (version_compare(phpversion(), BYTENFT_ONRAMP_PAYMENT_GATEWAY_MIN_PHP_VER, '<')) {
 		return sprintf(
@@ -56,9 +56,9 @@ function bytenft_onramp_check_system_requirements()
 /**
  * Activation check for the plugin.
  */
-function bytenft_onramp_activation_check()
+function bnftonramp_activation_check()
 {
-	$environment_warning = bytenft_onramp_check_system_requirements();
+	$environment_warning = bnftonramp_check_system_requirements();
 	if ($environment_warning) {
 		deactivate_plugins(plugin_basename(BYTENFT_ONRAMP_PAYMENT_GATEWAY_FILE));
 		wp_die(esc_html($environment_warning)); // Escape the output before calling wp_die
