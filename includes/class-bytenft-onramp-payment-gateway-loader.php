@@ -192,6 +192,15 @@ class BYTENFT_ONRAMP_PAYMENT_GATEWAY_Loader
 			return new WP_REST_Response(['error' => esc_html__('Order not found', 'bytenft-onramp-payment-gateway')], 404);
 		}
 
+		wc_get_logger()->info(' check payment status fnc response ', [
+				'source'  => 'bytenft-onramp-payment-gateway',
+				'context' => [
+					'order_id'           => $order_id,
+					'order_status' => $order->get_status()
+				],
+			]);
+
+
 		$payment_return_url = esc_url($order->get_checkout_order_received_url());
 
 		// Determine order status
@@ -210,8 +219,8 @@ class BYTENFT_ONRAMP_PAYMENT_GATEWAY_Loader
 			exit;
 		}
 
-		if ($order->has_status('canceled')) {
-			wp_send_json_success(['status' => 'canceled', 'redirect_url' => $payment_return_url]);
+		if ($order->has_status('cancelled') || $order->has_status('canceled')) {
+			wp_send_json_success(['status' => 'cancelled', 'redirect_url' => $payment_return_url]);
 			exit;
 		}
 
