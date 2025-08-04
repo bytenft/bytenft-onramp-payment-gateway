@@ -163,6 +163,14 @@ class BYTENFT_ONRAMP_PAYMENT_GATEWAY_REST_API
 				$payment_return_url = esc_url($order->get_checkout_order_received_url());
 				return new WP_REST_Response(['success' => true, 'message' => 'Order status already updated or no change required', 'payment_return_url' => $payment_return_url], 200);
 			}
+		}elseif ($api_order_status === 'failed') {
+		    // Only allow cancelling if current order is not already cancelled or completed
+		    if (!in_array($current_order_status, ['completed'])) {
+		        $target_order_status = 'failed';
+		    } else {
+		        $this->logger->info("Order {$order_id} is already in '{$current_order_status}' status. No change for duplicate 'failed' status.", ['source' => 'bytenft-onramp-payment-gateway']);
+		        return new WP_REST_Response(['success' => true, 'message' => 'Order already failed or completed', 'payment_return_url' => $order->get_checkout_order_received_url()], 200);
+		    }
 		}elseif ($api_order_status === 'cancelled') {
 		    // Only allow cancelling if current order is not already cancelled or completed
 		    if (!in_array($current_order_status, ['cancelled', 'completed'])) {
