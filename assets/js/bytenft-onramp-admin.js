@@ -215,7 +215,7 @@ jQuery(document).ready(function ($) {
 				const liveSecretKey = $account.find(".live-secret-key");
 				const sandboxPublicKey = $account.find(".sandbox-public-key");
 				const sandboxSecretKey = $account.find(".sandbox-secret-key");
-				const sandboxCheckbox = $account.find(".sandbox-checkbox");
+				const sandboxCheckbox = $account.find("." + gatewayId + "-sandbox-checkbox");
 				const title = $account.find(".account-title");
 				const priority = $account.find(".account-priority");
 
@@ -414,10 +414,22 @@ jQuery(document).ready(function ($) {
 						var sandboxEnabled = $('#woocommerce_'+gatewayId+'_sandbox').is(':checked'); // <-- Updated
 						var statusLabel = $account.find('.account-status-label');
 
+						// Tooltip content based on status
+						const statusTooltips = {
+							active: 'The account is valid and ready to use.',
+							inactive: 'The account is currently inactive. Please check your settings.',
+							invalid: 'The account credentials are incorrect or incomplete.',
+							unknown: 'The account status could not be determined.',
+						};
+
+						// Determine tooltip content
+						const tooltipText = statusTooltips[newStatus.toLowerCase()] || '';
+
 						if ((sandboxEnabled && mode === 'sandbox') || (!sandboxEnabled && mode === 'live')) {
 							statusLabel
 								.removeClass('active inactive invalid unknown')
 								.addClass(newStatus.toLowerCase())
+								.attr('title', tooltipText)
 								.text((mode === 'sandbox' ? 'Sandbox Account Status: ' : 'Live Account Status: ') + capitalize(newStatus));
 						}
 					}
