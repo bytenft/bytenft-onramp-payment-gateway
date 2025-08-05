@@ -45,11 +45,11 @@ class BYTENFT_ONRAMP_PAYMENT_GATEWAY_Loader
 		add_action('plugins_loaded', [$this, 'bnftonramp_init'], 11);
 
 		// Register the AJAX action callback for checking payment status
-		add_action('wp_ajax_check_payment_status', array($this, 'bnftonramp_handle_check_payment_status_request'));
-		add_action('wp_ajax_nopriv_check_payment_status', array($this, 'bnftonramp_handle_check_payment_status_request'));
+		add_action('wp_ajax_bnftonramp_check_payment_status', array($this, 'bnftonramp_handle_check_payment_status_request'));
+		add_action('wp_ajax_nopriv_bnftonramp_check_payment_status', array($this, 'bnftonramp_handle_check_payment_status_request'));
 
-		add_action('wp_ajax_popup_closed_event', array($this, 'handle_popup_close'));
-		add_action('wp_ajax_nopriv_popup_closed_event', array($this, 'handle_popup_close'));
+		add_action('wp_ajax_bnftonramp_popup_closed_event', array($this, 'handle_popup_close'));
+		add_action('wp_ajax_nopriv_bnftonramp_popup_closed_event', array($this, 'handle_popup_close'));
 
 		add_action('wp_ajax_bnftonramp_manual_sync', [$this, 'bnftonramp_manual_sync_callback']);
 		add_filter('cron_schedules', [$this, 'bnftonramp_add_cron_interval']);
@@ -158,15 +158,7 @@ class BYTENFT_ONRAMP_PAYMENT_GATEWAY_Loader
 	 */
 	public function bnftonramp_handle_check_payment_status_request($request)
 	{
-		// Verify nonce for security (recommended)
-		// Sanitize and unslash the 'security' value
-		$security = isset($_POST['security']) ? sanitize_text_field(wp_unslash($_POST['security'])) : '';
-
-		// Check the nonce for security
-		if (empty($security) || !wp_verify_nonce($security, 'bnftonramp_payment')) {
-			wp_send_json_error(['message' => 'Nonce verification failed.']);
-			wp_die();
-		}
+		check_ajax_referer('bnftonramp_payment', 'security');
 
 		// Sanitize and validate the order ID from $_POST
 		$order_id = isset($_POST['order_id']) ? intval(sanitize_text_field(wp_unslash($_POST['order_id']))) : null;
@@ -307,7 +299,7 @@ class BYTENFT_ONRAMP_PAYMENT_GATEWAY_Loader
 			}
 
 			// Get the configured order status from the payment gateway settings
-			$gateway_id = 'bytenft-onramp'; // Replace with your gateway ID
+			$gateway_id = 'bnftonramp'; // Replace with your gateway ID
 			$payment_gateways = WC()->payment_gateways->payment_gateways();
 			if (isset($payment_gateways[$gateway_id])) {
 				$gateway = $payment_gateways[$gateway_id];
