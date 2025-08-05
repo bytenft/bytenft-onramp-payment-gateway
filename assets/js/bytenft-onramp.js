@@ -132,7 +132,7 @@ jQuery(function ($) {
 						type: 'POST',
 						url: bnftonramp_params.ajax_url,
 						data: {
-							action: 'popup_closed_event',
+							action: 'bnftonramp_popup_closed_event',
 							order_id: orderId,
 							security: bnftonramp_params.bnftonramp_nonce,
 						},
@@ -156,7 +156,7 @@ jQuery(function ($) {
 						type: 'POST',
 						url: bnftonramp_params.ajax_url,
 						data: {
-							action: 'check_payment_status',
+							action: 'bnftonramp_check_payment_status',
 							order_id: orderId,
 							security: bnftonramp_params.bnftonramp_nonce,
 						},
