@@ -184,16 +184,37 @@ class BYTENFT_ONRAMP_PAYMENT_GATEWAY_Loader
 			return new WP_REST_Response(['error' => esc_html__('Order not found', 'bytenft-onramp-payment-gateway')], 404);
 		}
 
+		$security = isset($_POST['security']) ? sanitize_text_field(wp_unslash($_POST['security'])) : '';
+		$payment_token = $order->get_meta('_bnftonramp_pay_id');
+		$transactionStatusApiUrl = $this->get_api_url('/api/update-txn-status');
+		$response = wp_remote_post($transactionStatusApiUrl, [
+			'method'    => 'POST',
+			'body'      => wp_json_encode(['order_id' => $order_id, 'payment_token' => $payment_token]),
+			'headers'   => [
+				'Content-Type'  => 'application/json',
+				'Authorization' => 'Bearer ' . $security,
+			],
+			'timeout'   => 15,
+		]);
+
+		$response_body = wp_remote_retrieve_body($response);
+		$response_data = json_decode($response_body, true);
+
 		wc_get_logger()->info(' check payment status fnc response ', [
-				'source'  => 'bytenft-onramp-payment-gateway',
+			'source'  => 'bytenft-onramp-payment-gateway',
 				'context' => [
 					'order_id'           => $order_id,
 					'order_status' => $order->get_status()
 				],
 			]);
-
-
+			
+			
 		$payment_return_url = esc_url($order->get_checkout_order_received_url());
+		
+		if (isset($response_data['transaction_status']) && $response_data['transaction_status'] == "canceled") {
+			wp_send_json_success(['status' => 'cancelled', 'redirect_url' => $payment_return_url]);
+			exit;
+		}
 
 		// Determine order status
 		if ($order->is_paid()) {
