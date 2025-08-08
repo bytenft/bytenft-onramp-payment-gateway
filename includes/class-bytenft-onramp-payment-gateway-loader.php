@@ -200,7 +200,7 @@ class BYTENFT_ONRAMP_PAYMENT_GATEWAY_Loader
 		$response_body = wp_remote_retrieve_body($response);
 		$response_data = json_decode($response_body, true);
 			
-		$payment_return_url = esc_url($order->get_checkout_order_received_url());
+		$payment_return_url = $order->get_checkout_order_received_url();
 
 		$gateway_id = 'bnftonramp'; // Replace with your gateway ID
 		$payment_gateways = WC()->payment_gateways->payment_gateways();
@@ -336,7 +336,7 @@ class BYTENFT_ONRAMP_PAYMENT_GATEWAY_Loader
 				wp_die();
 			}
 
-			$payment_return_url = esc_url($order->get_checkout_order_received_url());
+			$payment_return_url = $order->get_checkout_order_received_url();
 
 			if (isset($response_data['transaction_status'])) {
 				// Handle transaction status from API
