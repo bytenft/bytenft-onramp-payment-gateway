@@ -2,12 +2,12 @@
 
 /**
  * Plugin Name: ByteNFT Onramp Payment Gateway
- * Description: This plugin allows you to accept payments in USD through a secure payment gateway integration. Customers can complete their payment process with ease and security.
+ * Description: This plugin enables secure USD payments via debit cards, Apple Pay, and Coinbase. It provides a seamless checkout experience with instant USDC conversion and no wallet setup required.
  * Author: ByteNFT
  * Author URI: https://www.bytenft.xyz/
  * Text Domain: bytenft-onramp-payment-gateway
  * Plugin URI: https://github.com/bytenft/bytenft-onramp-payment-gateway
- * Version: 1.0.1
+ * Version: 1.0.4
  * License: GPLv3 or later
  * License URI: https://www.gnu.org/licenses/gpl-3.0.html
  *
@@ -41,15 +41,15 @@ spl_autoload_register(function ($class) {
 
 BYTENFT_ONRAMP_PAYMENT_GATEWAY_Loader::get_instance();
 
-add_action('woocommerce_cancel_unpaid_order', 'bytenft_onramp_cancel_unpaid_order_action');
-add_action('woocommerce_order_status_cancelled', 'bytenft_onramp_cancel_unpaid_order_action');
+add_action('woocommerce_cancel_unpaid_order', 'bnftonramp_cancel_unpaid_order_action');
+add_action('woocommerce_order_status_cancelled', 'bnftonramp_cancel_unpaid_order_action');
 
 /**
  * Cancels an unpaid order after a specified timeout.
  *
  * @param int $order_id The ID of the order to cancel.
  */
-function bytenft_onramp_cancel_unpaid_order_action($order_id)
+function bnftonramp_cancel_unpaid_order_action($order_id)
 {
 	global $wpdb;
 
@@ -110,8 +110,8 @@ function bytenft_onramp_cancel_unpaid_order_action($order_id)
 
 		$order->update_status('cancelled', 'Order automatically cancelled due to unpaid timeout.');
 		wc_reduce_stock_levels($order_id);
-		wp_cache_delete('bytenft_onramp_payment_link_uuid_' . $order_id, 'bytenft_onramp_payment_gateway');
-		wp_cache_delete('bytenft_onramp_payment_row_' . $order_id, 'bytenft_onramp_payment_gateway'); // Clear row cache
+		wp_cache_delete('bnftonramp_payment_link_uuid_' . $order_id, 'bnftonramp_payment_gateway');
+		wp_cache_delete('bnftonramp_payment_row_' . $order_id, 'bnftonramp_payment_gateway'); // Clear row cache
 
 		wc_get_logger()->info('Order auto-cancelled due to unpaid timeout.', [
 			'source'  => 'bytenft-onramp-payment-gateway',
@@ -121,8 +121,8 @@ function bytenft_onramp_cancel_unpaid_order_action($order_id)
 
 	// ====== Cancel Payment Link API ======
 	$table_name   = $wpdb->prefix . 'order_payment_link';
-	$cache_key    = 'bytenft_onramp_payment_row_' . $order_id;
-	$cache_group  = 'bytenft_onramp_payment_gateway';
+	$cache_key    = 'bnftonramp_payment_row_' . $order_id;
+	$cache_group  = 'bnftonramp_payment_gateway';
 
 	$payment_row = wp_cache_get($cache_key, $cache_group);
 

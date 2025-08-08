@@ -22,40 +22,51 @@ class BYTENFT_ONRAMP_PAYMENT_GATEWAY_REST_API
 		$this->logger = wc_get_logger();
 	}
 
-	public function bytenft_onramp_register_routes()
+	public function bnftonramp_register_routes()
 	{
 		// Log incoming request with sanitized parameters
 		add_action('rest_api_init', function () {
-			register_rest_route('bytenft-onramp/v1', '/data', array(
+			register_rest_route('bnftonramp/v1', '/data', array(
 				'methods' => 'POST',
-				'callback' => array($this, 'bytenft_onramp_handle_api_request'),
+				'callback' => array($this, 'bnftonramp_handle_api_request'),
 				'permission_callback' => '__return_true',
 			));
 		});
 	}
 
-	private function bytenft_onramp_verify_api_key($api_key)
+	private function bnftonramp_verify_api_key($api_key)
 	{
 		// Sanitize the API key parameter early
 		$api_key = sanitize_text_field($api_key);
 
-		// Get ByteNFT Onramp settings
-		$bytenft_onramp_settings = get_option('woocommerce_bytenft_onramp_payment_gateway_accounts');
-		$bytenft_settings = get_option('woocommerce_bytenft_onramp_settings');
+		// Get ByteNFT Onramp settingss
+		$bnftonramp_settings = get_option('woocommerce_bnftonramp_payment_gateway_accounts');
+		$bytenft_settings = get_option('woocommerce_bnftonramp_settings');
 
-		if (!$bytenft_onramp_settings || empty($bytenft_onramp_settings)) {
+		if (!$bnftonramp_settings || empty($bnftonramp_settings)) {
 			return false; // No accounts available
 		}
 
-		$accounts = $bytenft_onramp_settings;
+		$accounts = $bnftonramp_settings;
 
 		$sandbox = isset($bytenft_settings['sandbox']) && $bytenft_settings['sandbox'] === 'yes';
+
+		$this->logger->info('Accounts to evaluate inside bnftonramp_verify_api_key fnc :', [
+		    'source' => 'bytenft-onramp-payment-gateway',
+		    'context' => $accounts,
+			'sandbox' => $sandbox,
+			'$bytenft_settings'=>$bytenft_settings
+		]);
 
 		foreach ($accounts as $account) {
 			$public_key = $sandbox ? sanitize_text_field($account['sandbox_public_key']) : sanitize_text_field($account['live_public_key']);
 
+			$this->logger->info(' check public_key ::  '.$public_key, array('source' => 'bytenft-onramp-payment-gateway'));
+
 			// Use a secure hash comparison
 			if (!empty($public_key) && hash_equals($public_key, $api_key)) {
+				$this->logger->info('keys are matched ', array('source' => 'bytenft-onramp-payment-gateway'));
+				
 				return true;
 			}
 		}
@@ -68,7 +79,7 @@ class BYTENFT_ONRAMP_PAYMENT_GATEWAY_REST_API
 	 * @param WP_REST_Request $request The REST API request object.
 	 * @return WP_REST_Response The response object.
 	 */
-	public function bytenft_onramp_handle_api_request(WP_REST_Request $request)
+	public function bnftonramp_handle_api_request(WP_REST_Request $request)
 	{
 		$parameters = $request->get_json_params();
 
@@ -86,7 +97,7 @@ class BYTENFT_ONRAMP_PAYMENT_GATEWAY_REST_API
 		]);
 
 		// Validate API key first to secure the endpoint.
-		if (!$this->bytenft_onramp_verify_api_key(base64_decode($api_key))) {
+		if (!$this->bnftonramp_verify_api_key(base64_decode($api_key))) {
 			$this->logger->error('Unauthorized access attempt due to invalid API key.', array('source' => 'bytenft-onramp-payment-gateway'));
 			return new WP_REST_Response(['error' => 'Unauthorized'], 401);
 		}
@@ -105,7 +116,7 @@ class BYTENFT_ONRAMP_PAYMENT_GATEWAY_REST_API
 		}
 
 		// Retrieve the stored payment token (pay_id) from the order meta.
-		$stored_payment_token = $order->get_meta('_bytenft_onramp_pay_id');
+		$stored_payment_token = $order->get_meta('_bnftonramp_pay_id');
 
 		// Crucial check: Ensure the received pay_id matches the one stored with the order.
 		// This prevents unauthorized updates to orders by supplying a valid order_id but a different pay_id.
@@ -120,9 +131,9 @@ class BYTENFT_ONRAMP_PAYMENT_GATEWAY_REST_API
 
 		if ($api_order_status === 'completed') {
 			// Check if the current order status allows for a transition to 'completed' or 'processing'.
-			if (in_array($current_order_status, ['pending', 'failed'])) {
+			if (in_array($current_order_status, ['pending', 'failed', 'cancelled'])) {
 				// Get the configured order status from the payment gateway settings for successful payments.
-				$gateway_id = 'bytenft-onramp';
+				$gateway_id = 'bnftonramp';
 				$payment_gateways = WC()->payment_gateways->payment_gateways();
 
 				if (isset($payment_gateways[$gateway_id])) {
@@ -149,9 +160,25 @@ class BYTENFT_ONRAMP_PAYMENT_GATEWAY_REST_API
 				if (WC()->cart) {
 					WC()->cart->empty_cart();
 				}
-				$payment_return_url = esc_url($order->get_checkout_order_received_url());
+				$payment_return_url = $order->get_checkout_order_received_url();
 				return new WP_REST_Response(['success' => true, 'message' => 'Order status already updated or no change required', 'payment_return_url' => $payment_return_url], 200);
 			}
+		}elseif ($api_order_status === 'failed') {
+		    // Only allow cancelling if current order is not already cancelled or completed
+		    if (!in_array($current_order_status, ['completed'])) {
+		        $target_order_status = 'failed';
+		    } else {
+		        $this->logger->info("Order {$order_id} is already in '{$current_order_status}' status. No change for duplicate 'failed' status.", ['source' => 'bytenft-onramp-payment-gateway']);
+		        return new WP_REST_Response(['success' => true, 'message' => 'Order already failed or completed', 'payment_return_url' => $order->get_checkout_order_received_url()], 200);
+		    }
+		}elseif ($api_order_status === 'cancelled') {
+		    // Only allow cancelling if current order is not already cancelled or completed
+		    if (!in_array($current_order_status, ['cancelled', 'completed'])) {
+		        $target_order_status = 'cancelled';
+		    } else {
+		        $this->logger->info("Order {$order_id} is already in '{$current_order_status}' status. No change for duplicate 'cancelled' status.", ['source' => 'bytenft-onramp-payment-gateway']);
+		        return new WP_REST_Response(['success' => true, 'message' => 'Order already cancelled or completed', 'payment_return_url' => $order->get_checkout_order_received_url()], 200);
+		    }
 		} else {
 			// If the API status is not 'completed', or if your system needs to handle other statuses
 			// (e.g., 'failed', 'refunded'), you would add logic here.
@@ -161,7 +188,7 @@ class BYTENFT_ONRAMP_PAYMENT_GATEWAY_REST_API
 			$this->logger->info('ByteNFT Onramp API requested status "' . esc_html($api_order_status) . '" for order ' . esc_html($order_id) . '. Current status is "' . esc_html($current_order_status) . '". No specific action for this API status defined.', array('source' => 'bytenft-onramp-payment-gateway'));
 
 			// If no action is needed for this specific API status, we still return success to acknowledge receipt.
-			$payment_return_url = esc_url($order->get_checkout_order_received_url());
+			$payment_return_url = $order->get_checkout_order_received_url();
 			return new WP_REST_Response(['success' => true, 'message' => 'Request received, no status change performed based on API status', 'payment_return_url' => $payment_return_url], 200);
 		}
 
@@ -194,7 +221,7 @@ class BYTENFT_ONRAMP_PAYMENT_GATEWAY_REST_API
 		}
 
 		// Return a successful response to ByteNFT Onramp API.
-		$payment_return_url = esc_url($order->get_checkout_order_received_url());
+		$payment_return_url = $order->get_checkout_order_received_url();
 		return new WP_REST_Response(['success' => true, 'message' => 'Order status processed successfully', 'payment_return_url' => $payment_return_url], 200);
 	}
 }

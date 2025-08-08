@@ -10,7 +10,7 @@ require_once plugin_dir_path(__FILE__) . 'config.php';
  */
 class BYTENFT_ONRAMP_PAYMENT_GATEWAY extends WC_Payment_Gateway_CC
 {
-	const ID = 'bytenft-onramp';
+	const ID = 'bnftonramp';
 
 	protected $sandbox;
 	private $base_url;
@@ -49,7 +49,7 @@ class BYTENFT_ONRAMP_PAYMENT_GATEWAY extends WC_Payment_Gateway_CC
 		$this->method_description = __('This plugin allows you to accept payments in USD through a secure payment gateway integration. Customers can complete their payment process with ease and security.', 'bytenft-onramp-payment-gateway');
 
 		// Load the settings
-		$this->bytenft_onramp_init_form_fields();
+		$this->bnftonramp_init_form_fields();
 		$this->init_settings();
 
 		// Define properties
@@ -62,18 +62,18 @@ class BYTENFT_ONRAMP_PAYMENT_GATEWAY extends WC_Payment_Gateway_CC
 		$this->current_account_index = 0;
 
 		// Define hooks and actions.
-		add_action('woocommerce_update_options_payment_gateways_' . $this->id, [$this, 'bytenft_onramp_process_admin_options']);
+		add_action('woocommerce_update_options_payment_gateways_' . $this->id, [$this, 'bnftonramp_process_admin_options']);
 
 		// Enqueue styles and scripts
-		add_action('wp_enqueue_scripts', [$this, 'bytenft_onramp_enqueue_styles_and_scripts']);
+		add_action('wp_enqueue_scripts', [$this, 'bnftonramp_enqueue_styles_and_scripts']);
 
-		add_action('admin_enqueue_scripts', [$this, 'bytenft_onramp_admin_scripts']);
+		add_action('admin_enqueue_scripts', [$this, 'bnftonramp_admin_scripts']);
 
 		// Add action to display test order tag in order details
-		add_action('woocommerce_admin_order_data_after_order_details', [$this, 'bytenft_onramp_display_test_order_tag']);
+		add_action('woocommerce_admin_order_data_after_order_details', [$this, 'bnftonramp_display_test_order_tag']);
 
 		// Hook into WooCommerce to add a custom label to order rows
-		add_filter('woocommerce_admin_order_preview_line_items', [$this, 'bytenft_onramp_add_custom_label_to_order_row'], 10, 2);
+		add_filter('woocommerce_admin_order_preview_line_items', [$this, 'bnftonramp_add_custom_label_to_order_row'], 10, 2);
 
 		add_filter('woocommerce_available_payment_gateways', [$this, 'hide_custom_payment_gateway_conditionally']);
 	}
@@ -81,6 +81,18 @@ class BYTENFT_ONRAMP_PAYMENT_GATEWAY extends WC_Payment_Gateway_CC
 	private function get_api_url($endpoint)
 	{
 		return $this->base_url . $endpoint;
+	}
+	
+	protected function log_info($message, $context = [])
+	{
+	    $logger = wc_get_logger();
+	    $data = ['source' => 'bytenft-onramp-payment-gateway'];
+
+	    if (!empty($context)) {
+	        $data['context'] = $context;
+	    }
+
+	    $logger->info($message, $data);
 	}
 
 	protected function log_info($message, $context = []) {
@@ -90,14 +102,15 @@ class BYTENFT_ONRAMP_PAYMENT_GATEWAY extends WC_Payment_Gateway_CC
 	    ]));
 	}
 
-	public function bytenft_onramp_process_admin_options()
+	public function bnftonramp_process_admin_options()
+
 	{
 		parent::process_admin_options();
 
 		$errors = [];
 		$valid_accounts = [];
 
-		if (!isset($_POST['bytenft_onramp_accounts_nonce']) || !wp_verify_nonce(sanitize_text_field(wp_unslash($_POST['bytenft_onramp_accounts_nonce'])), 'bytenft_onramp_accounts_nonce_action')) {
+		if (!isset($_POST['bnftonramp_accounts_nonce']) || !wp_verify_nonce(sanitize_text_field(wp_unslash($_POST['bnftonramp_accounts_nonce'])), 'bnftonramp_accounts_nonce_action')) {
 			wp_die(esc_html__('Security check failed!', 'bytenft-onramp-payment-gateway'));
 		}
 
@@ -216,8 +229,8 @@ class BYTENFT_ONRAMP_PAYMENT_GATEWAY extends WC_Payment_Gateway_CC
 
 		//  Stop saving if there are any errors
 		if (empty($errors)) {
-			update_option('woocommerce_bytenft_onramp_payment_gateway_accounts', $valid_accounts);
-			$this->admin_notices->bytenft_onramp_add_notice('settings_success', 'notice notice-success', __('Settings saved successfully.', 'bytenft-onramp-payment-gateway'));
+			update_option('woocommerce_bnftonramp_payment_gateway_accounts', $valid_accounts);
+			$this->admin_notices->bnftonramp_add_notice('settings_success', 'notice notice-success', __('Settings saved successfully.', 'bytenft-onramp-payment-gateway'));
 			if (class_exists('BYTENFT_ONRAMP_PAYMENT_GATEWAY_Loader')) {
 				$loader = BYTENFT_ONRAMP_PAYMENT_GATEWAY_Loader::get_instance(); // Use the static method
 				if (method_exists($loader, 'handle_cron_event')) {
@@ -226,25 +239,77 @@ class BYTENFT_ONRAMP_PAYMENT_GATEWAY extends WC_Payment_Gateway_CC
 			}
 		} else {
 			foreach ($errors as $error) {
-				$this->admin_notices->bytenft_onramp_add_notice('settings_error', 'notice notice-error', $error);
+				$this->admin_notices->bnftonramp_add_notice('settings_error', 'notice notice-error', $error);
 			}
 		}
 
 		add_action('admin_notices', [$this->admin_notices, 'display_notices']);
 	}
 
+	public function get_updated_account() {
+		$accounts = get_option('woocommerce_bytenft_payment_gateway_accounts', []);
+		$valid_accounts = [];
+		foreach ($accounts as $index => $account) {
+		    $useSandbox = $this->sandbox;
+		    $secretKey = $useSandbox ? $account['sandbox_secret_key'] : $account['live_secret_key'];
+		    $publicKey = $useSandbox ? $account['sandbox_public_key'] : $account['live_public_key'];
+
+		    $this->log_info("Checking merchant status for account #$index", [
+		        'context' => compact('useSandbox', 'publicKey')
+		    ]);
+
+		    $checkStatusUrl = $this->get_api_url('/api/check-merchant-status', $useSandbox);
+
+		    $response = wp_remote_post($checkStatusUrl, [
+		        'headers' => [
+		            'Authorization' => 'Bearer ' . $publicKey,
+		            'Content-Type'  => 'application/json',
+		        ],
+		        'timeout' => 10,
+		        'body' => wp_json_encode([
+		            'api_secret_key' => $secretKey,
+		            'is_sandbox'     => $useSandbox,
+		        ]),
+		    ]);
+
+		    $body = json_decode(wp_remote_retrieve_body($response), true);
+			$hasError = is_array($body) && strtolower($body['status'] ?? '') === 'error';
+
+			$valid_accounts[$index] = [
+				'title' => $account['title'],
+				'priority' => $account['priority'],
+				'live_public_key' => $account['live_public_key'],
+				'live_secret_key' => $account['live_secret_key'],
+				'sandbox_public_key' => $account['sandbox_public_key'],
+				'sandbox_secret_key' => $account['sandbox_secret_key'],
+				'has_sandbox' => $account['has_sandbox'],
+				'sandbox_status' => $hasError ? 'Inactive' : 'Active',
+				'live_status' => $hasError ? 'Inactive' : 'Active',
+			];
+			$index++;
+		    $this->log_info("Account #$index not active", ['context' => $body]);
+		}
+
+		if (!empty($valid_accounts)) {
+			update_option('woocommerce_bytenft_payment_gateway_accounts', $valid_accounts);
+		}
+
+	    $this->log_info('No active account. Removing bytenft gateway.');
+	    return false;
+	}
+
 	/**
 	 * Initialize gateway settings form fields.
 	 */
-	public function bytenft_onramp_init_form_fields()
+	public function bnftonramp_init_form_fields()
 	{
-		$this->form_fields = $this->bytenft_onramp_get_form_fields();
+		$this->form_fields = $this->bnftonramp_get_form_fields();
 	}
 
 	/**
 	 * Get form fields.
 	 */
-	public function bytenft_onramp_get_form_fields()
+	public function bnftonramp_get_form_fields()
 	{
 		$form_fields = [
 			'enabled' => [
@@ -276,7 +341,7 @@ class BYTENFT_ONRAMP_PAYMENT_GATEWAY extends WC_Payment_Gateway_CC
 				'description' => sprintf(
 					/* translators: %1$s is a link to the developer account. %2$s is used for any additional formatting if necessary. */
 					__('To configure this gateway, %1$sGet your API keys from your merchant account: Developer Settings > API Keys.%2$s', 'bytenft-onramp-payment-gateway'),
-					'<strong><a class="bytenft-onramp-instructions-url" href="' .
+					'<strong><a class="bnftonramp-instructions-url" href="' .
 						esc_url($this->base_url . '/developers') .
 						'" target="_blank">' .
 						__('click here to access your developer account', 'bytenft-onramp-payment-gateway') .
@@ -325,10 +390,10 @@ class BYTENFT_ONRAMP_PAYMENT_GATEWAY extends WC_Payment_Gateway_CC
 	public function generate_accounts_repeater_html($key, $data)
 	{
 
-		$option_value = get_option('woocommerce_bytenft_onramp_payment_gateway_accounts', []);
+		$option_value = get_option('woocommerce_bnftonramp_payment_gateway_accounts', []);
 		$option_value = maybe_unserialize($option_value);
-		$active_account = get_option('bytenft_onramp_active_account', 0); // Store active account ID
-		$global_settings = get_option('woocommerce_bytenft_onramp_settings', []);
+		$active_account = get_option('bnftonramp_active_account', 0); // Store active account ID
+		$global_settings = get_option('woocommerce_bnftonramp_settings', []);
 		$global_settings = maybe_unserialize($global_settings);
 		$sandbox_enabled = !empty($global_settings['sandbox']) && $global_settings['sandbox'] === 'yes';
 
@@ -340,11 +405,11 @@ class BYTENFT_ONRAMP_PAYMENT_GATEWAY extends WC_Payment_Gateway_CC
 			</th>
 			<td class="forminp">
 				<div id="global-error" class="error-message" style="color: red; margin-bottom: 10px;"></div>
-				<div class="bytenft-onramp-accounts-container">
+				<div class="bnftonramp-accounts-container">
 					<?php if (!empty($option_value)): ?>
-						<div class="bytenft-onramp-sync-account">
-							<span id="bytenft-onramp-sync-status"></span>
-							<button class="button" class="bytenft-onramp-sync-accounts" id="bytenft-onramp-sync-accounts"><span><i class="fa fa-refresh" aria-hidden="true"></i></span> <?php esc_html_e('Sync Accounts', 'bytenft-onramp-payment-gateway'); ?></button>
+						<div class="bnftonramp-sync-account">
+							<span id="bnftonramp-sync-status"></span>
+							<button class="button" class="bnftonramp-sync-accounts" id="bnftonramp-sync-accounts"><span><i class="fa fa-refresh" aria-hidden="true"></i></span> <?php esc_html_e('Sync Accounts', 'bytenft-onramp-payment-gateway'); ?></button>
 						</div>
 					<?php endif; ?>
 
@@ -357,7 +422,7 @@ class BYTENFT_ONRAMP_PAYMENT_GATEWAY extends WC_Payment_Gateway_CC
 							$live_status = (!empty($account['live_status'])) ? $account['live_status'] : '';
 							$sandbox_status = (!empty($account['sandbox_status'])) ? $account['sandbox_status'] : 'unknown';
 							?>
-							<div class="bytenft-onramp-account" data-index="<?php echo esc_attr($index); ?>">
+							<div class="bnftonramp-account" data-index="<?php echo esc_attr($index); ?>">
 								<input type="hidden" name="accounts[<?php echo esc_attr($index); ?>][live_status]"
 									value="<?php echo esc_attr($account['live_status'] ?? ''); ?>">
 								<input type="hidden" name="accounts[<?php echo esc_attr($index); ?>][sandbox_status]"
@@ -469,9 +534,9 @@ class BYTENFT_ONRAMP_PAYMENT_GATEWAY extends WC_Payment_Gateway_CC
 							</div>
 						<?php endforeach; ?>
 					<?php endif; ?>
-					<?php wp_nonce_field('bytenft_onramp_accounts_nonce_action', 'bytenft_onramp_accounts_nonce'); ?>
+					<?php wp_nonce_field('bnftonramp_accounts_nonce_action', 'bnftonramp_accounts_nonce'); ?>
 					<div class="add-account-btn">
-						<button type="button" class="button bytenft-onramp-add-account">
+						<button type="button" class="button bnftonramp-add-account">
 							<span>+</span> <?php esc_html_e('Add Account', 'bytenft-onramp-payment-gateway'); ?>
 						</button>
 					</div>
@@ -607,7 +672,7 @@ class BYTENFT_ONRAMP_PAYMENT_GATEWAY extends WC_Payment_Gateway_CC
 			$order->add_order_note(__('Processing Payment Via: ', 'bytenft-onramp-payment-gateway') . $account['title']);
 
 			// **Prepare API Data**
-			$data = $this->bytenft_onramp_prepare_payment_data($order, $public_key, $secret_key);
+			$data = $this->bnftonramp_prepare_payment_data($order, $public_key, $secret_key);
 
 			// **Check Transaction Limit**
 			$transactionLimitApiUrl = $this->get_api_url('/api/dailylimit');
@@ -664,7 +729,7 @@ class BYTENFT_ONRAMP_PAYMENT_GATEWAY extends WC_Payment_Gateway_CC
 			$apiPath = '/api/request-payment';
 			$url = esc_url($this->base_url . $apiPath);
 
-			$order->update_meta_data('_order_origin', 'bytenft_onramp_payment_gateway');
+			$order->update_meta_data('_order_origin', 'bnftonramp_payment_gateway');
 			$order->save();
 
 			$response = wp_remote_post($url, [
@@ -699,14 +764,14 @@ class BYTENFT_ONRAMP_PAYMENT_GATEWAY extends WC_Payment_Gateway_CC
 				// Save pay_id to order meta
 				$pay_id = $response_data['data']['pay_id'] ?? '';
 				if (!empty($pay_id)) {
-					$order->update_meta_data('_bytenft_onramp_pay_id', $pay_id);
+					$order->update_meta_data('_bnftonramp_pay_id', $pay_id);
 				}
 
 				$table_name = $wpdb->prefix . 'order_payment_link';
 
 				// Add simple cache to avoid hitting DB on every request
-				$cache_key    = 'bytenft_onramp_table_exists_' . md5($table_name);
-				$cache_group  = 'bytenft_onramp_payment_gateway';
+				$cache_key    = 'bnftonramp_table_exists_' . md5($table_name);
+				$cache_group  = 'bnftonramp_payment_gateway';
 
 				$table_exists = wp_cache_get($cache_key, $cache_group);
 
@@ -836,19 +901,19 @@ class BYTENFT_ONRAMP_PAYMENT_GATEWAY extends WC_Payment_Gateway_CC
 	}
 
 	// Display the "Test Order" tag in admin order details
-	public function bytenft_onramp_display_test_order_tag($order)
+	public function bnftonramp_display_test_order_tag($order)
 	{
 		if (get_post_meta($order->get_id(), '_is_test_order', true)) {
 			echo '<p><strong>' . esc_html__('Test Order', 'bytenft-onramp-payment-gateway') . '</strong></p>';
 		}
 	}
 
-	private function bytenft_onramp_get_return_url_base()
+	private function bnftonramp_get_return_url_base()
 	{
-		return rest_url('/bytenft-onramp/v1/data');
+		return rest_url('/bnftonramp/v1/data');
 	}
 
-	private function bytenft_onramp_prepare_payment_data($order, $api_public_key, $api_secret)
+	private function bnftonramp_prepare_payment_data($order, $api_public_key, $api_secret)
 	{
 		$order_id = $order->get_id(); // Validate order ID
 		// Check if sandbox mode is enabled
@@ -874,14 +939,14 @@ class BYTENFT_ONRAMP_PAYMENT_GATEWAY extends WC_Payment_Gateway_CC
 				[
 					'order_id' => $order_id, // Include order ID or any other identifier
 					'key' => $order->get_order_key(),
-					'nonce' => wp_create_nonce('bytenft_onramp_payment_nonce'), // Create a nonce for verification
+					'nonce' => wp_create_nonce('bnftonramp_payment_nonce'), // Create a nonce for verification
 					'mode' => 'wp',
 				],
-				$this->bytenft_onramp_get_return_url_base() // Use the updated base URL method
+				$this->bnftonramp_get_return_url_base() // Use the updated base URL method
 			)
 		);
 
-		$ip_address = sanitize_text_field($this->bytenft_onramp_get_client_ip());
+		$ip_address = sanitize_text_field($this->bnftonramp_get_client_ip());
 
 		if (empty($order_id)) {
 			wc_get_logger()->error('Order ID is missing or invalid.', ['source' => 'bytenft-onramp-payment-gateway']);
@@ -928,7 +993,7 @@ class BYTENFT_ONRAMP_PAYMENT_GATEWAY extends WC_Payment_Gateway_CC
 	}
 
 	// Helper function to get client IP address
-	private function bytenft_onramp_get_client_ip()
+	private function bnftonramp_get_client_ip()
 	{
 		$ip = '';
 
@@ -955,7 +1020,7 @@ class BYTENFT_ONRAMP_PAYMENT_GATEWAY extends WC_Payment_Gateway_CC
 	 * @param WC_Order $order The WooCommerce order object.
 	 * @return array Modified line items array.
 	 */
-	public function bytenft_onramp_add_custom_label_to_order_row($line_items, $order)
+	public function bnftonramp_add_custom_label_to_order_row($line_items, $order)
 	{
 		// Get the custom meta field value (e.g. '_order_origin')
 		$order_origin = $order->get_meta('_order_origin');
@@ -972,7 +1037,7 @@ class BYTENFT_ONRAMP_PAYMENT_GATEWAY extends WC_Payment_Gateway_CC
 	/**
 	 * WooCommerce not active notice.
 	 */
-	public function bytenft_onramp_woocommerce_not_active_notice()
+	public function bnftonramp_woocommerce_not_active_notice()
 	{
 		echo '<div class="error">
         <p>' .
@@ -999,8 +1064,8 @@ class BYTENFT_ONRAMP_PAYMENT_GATEWAY extends WC_Payment_Gateway_CC
 		if ('yes' === $this->get_option('show_consent_checkbox')) {
 			// Add user consent checkbox with escaping
 			echo '<p class="form-row form-row-wide">
-                <label for="bytenft_onramp_consent">
-                    <input type="checkbox" id="bytenft_onramp_consent" name="bytenft_onramp_consent" /> ' .
+                <label for="bnftonramp_consent">
+                    <input type="checkbox" id="bnftonramp_consent" name="bnftonramp_consent" /> ' .
 				esc_html__('I consent to the collection of my data to process this payment', 'bytenft-onramp-payment-gateway') .
 				'
                 </label>
@@ -1008,7 +1073,7 @@ class BYTENFT_ONRAMP_PAYMENT_GATEWAY extends WC_Payment_Gateway_CC
 
 			// Add nonce field for security
 
-			wp_nonce_field('bytenft_onramp_payment', 'bytenft_onramp_nonce');
+			wp_nonce_field('bnftonramp_payment', 'bnftonramp_nonce');
 		}
 	}
 
@@ -1024,14 +1089,14 @@ class BYTENFT_ONRAMP_PAYMENT_GATEWAY extends WC_Payment_Gateway_CC
 		// Check if the consent checkbox setting is enabled
 		if ($this->get_option('show_consent_checkbox') === 'yes') {
 			// Sanitize and validate the nonce field
-			$nonce = isset($_POST['bytenft_onramp_nonce']) ? sanitize_text_field(wp_unslash($_POST['bytenft_onramp_nonce'])) : '';
-			if (empty($nonce) || !wp_verify_nonce($nonce, 'bytenft_onramp_payment')) {
+			$nonce = isset($_POST['bnftonramp_nonce']) ? sanitize_text_field(wp_unslash($_POST['bnftonramp_nonce'])) : '';
+			if (empty($nonce) || !wp_verify_nonce($nonce, 'bnftonramp_payment')) {
 				wc_add_notice(__('Nonce verification failed. Please try again.', 'bytenft-onramp-payment-gateway'), 'error');
 				return false;
 			}
 
 			// Sanitize the consent checkbox input
-			$consent = isset($_POST['bytenft_onramp_consent']) ? sanitize_text_field(wp_unslash($_POST['bytenft_onramp_consent'])) : '';
+			$consent = isset($_POST['bnftonramp_consent']) ? sanitize_text_field(wp_unslash($_POST['bnftonramp_consent'])) : '';
 
 			// Validate the consent checkbox was checked
 			if ($consent !== 'on') {
@@ -1046,21 +1111,21 @@ class BYTENFT_ONRAMP_PAYMENT_GATEWAY extends WC_Payment_Gateway_CC
 	/**
 	 * Enqueue stylesheets for the plugin.
 	 */
-	public function bytenft_onramp_enqueue_styles_and_scripts()
+	public function bnftonramp_enqueue_styles_and_scripts()
 	{
 		if (is_checkout()) {
 			// Enqueue stylesheets
 			wp_enqueue_style(
-				'bytenft-onramp-payment-loader-styles',
+				'bnftonramp-payment-loader-styles',
 				plugins_url('../assets/css/frontend.css', __FILE__),
 				[], // Dependencies (if any)
 				'1.0', // Version number
 				'all' // Media
 			);
 
-			// Enqueue bytenft-onramp.js script
+			// Enqueue bnftonramp.js script
 			wp_enqueue_script(
-				'bytenft-onramp-js',
+				'bnftonramp-js',
 				plugins_url('../assets/js/bytenft-onramp.js', __FILE__),
 				['jquery'], // Dependencies
 				'1.0', // Version number
@@ -1068,17 +1133,17 @@ class BYTENFT_ONRAMP_PAYMENT_GATEWAY extends WC_Payment_Gateway_CC
 			);
 
 			// Localize script with parameters that need to be passed to bytenft-onramp.js
-			wp_localize_script('bytenft-onramp-js', 'bytenft_onramp_params', [
+			wp_localize_script('bnftonramp-js', 'bnftonramp_params', [
 				'ajax_url' => admin_url('admin-ajax.php'),
 				'checkout_url' => wc_get_checkout_url(),
-				'bytenft_onramp_loader' => plugins_url('../assets/images/loader.gif', __FILE__),
-				'bytenft_onramp_nonce' => wp_create_nonce('bytenft_onramp_payment'), // Create a nonce for verification
+				'bnftonramp_loader' => plugins_url('../assets/images/loader.gif', __FILE__),
+				'bnftonramp_nonce' => wp_create_nonce('bnftonramp_payment'), // Create a nonce for verification
 				'payment_method' => $this->id,
 			]);
 		}
 	}
 
-	function bytenft_onramp_admin_scripts($hook)
+	function bnftonramp_admin_scripts($hook)
 	{
 
 		if (
@@ -1089,17 +1154,17 @@ class BYTENFT_ONRAMP_PAYMENT_GATEWAY extends WC_Payment_Gateway_CC
 		}
 
 		// Enqueue Admin CSS
-		wp_enqueue_style('bytenft-onramp-font-awesome', plugins_url('../assets/css/font-awesome.css', __FILE__), [], filemtime(plugin_dir_path(__FILE__) . '../assets/css/font-awesome.css'), 'all');
+		wp_enqueue_style('bnftonramp-font-awesome', plugins_url('../assets/css/font-awesome.css', __FILE__), [], filemtime(plugin_dir_path(__FILE__) . '../assets/css/font-awesome.css'), 'all');
 
 		// Enqueue Admin CSS
-		wp_enqueue_style('bytenft-onramp-admin-css', plugins_url('../assets/css/admin.css', __FILE__), [], filemtime(plugin_dir_path(__FILE__) . '../assets/css/admin.css'), 'all');
+		wp_enqueue_style('bnftonramp-admin-css', plugins_url('../assets/css/admin.css', __FILE__), [], filemtime(plugin_dir_path(__FILE__) . '../assets/css/admin.css'), 'all');
 
 		// Register and enqueue your script
-		wp_enqueue_script('bytenft-onramp-admin-script', plugins_url('../assets/js/bytenft-onramp-admin.js', __FILE__), ['jquery'], filemtime(plugin_dir_path(__FILE__) . '../assets/js/bytenft-onramp-admin.js'), true);
+		wp_enqueue_script('bnftonramp-admin-script', plugins_url('../assets/js/bytenft-onramp-admin.js', __FILE__), ['jquery'], filemtime(plugin_dir_path(__FILE__) . '../assets/js/bytenft-onramp-admin.js'), true);
 
-		wp_localize_script('bytenft-onramp-admin-script', 'bytenft_onramp_admin_data', [
+		wp_localize_script('bnftonramp-admin-script', 'bnftonramp_admin_data', [
 			'ajax_url' => admin_url('admin-ajax.php'),
-			'nonce' => wp_create_nonce('bytenft_onramp_sync_nonce'),
+			'nonce' => wp_create_nonce('bnftonramp_sync_nonce'),
 			'gateway_id' => $this->id,
 		]);
 	}
@@ -1159,147 +1224,151 @@ class BYTENFT_ONRAMP_PAYMENT_GATEWAY extends WC_Payment_Gateway_CC
 	public function hide_custom_payment_gateway_conditionally($available_gateways)
 	{
 	    $gateway_id = $this->id;
+	    $cache_key = 'bnftonramp_gateway_visibility_' . $gateway_id;
+
+	    if (!isset($available_gateways[$gateway_id])) {
+			$this->log_info_once_per_request('gateway_not_enabled', 'Plugin active, but gateway not enabled in WooCommerce settings.');
+	        return $available_gateways;
+	    }
+
+	    if (isset($GLOBALS[$cache_key])) {
+	        return $GLOBALS[$cache_key];
+	    }
 
 	    if (!is_checkout()) {
-	        return $available_gateways;
+			return $available_gateways;
 	    }
 
-		if (is_admin()) {
-			$this->get_updated_account();
+	    if (is_admin()) {
+			$this->log_info_once_per_request('in_admin', 'Gateway check bypassed in admin mode.');
+	        $this->get_updated_account();
 	        return $available_gateways;
 	    }
+    
 
-	    // Optional: limit logic execution within a single PHP request
-	    static $already_checked = false;
-	    static $is_visible = null;
+	    // Calculate order amount
+	    $amount = 0.00;
+	    if (WC()->cart && method_exists(WC()->cart, 'get_total')) {
+	        $amount = (float) WC()->cart->get_total('raw');
 
-	    if ($already_checked) {
-	        if (!$is_visible) {
-	            unset($available_gateways[$gateway_id]);
+	        if ($amount < 0.01 && method_exists(WC()->cart, 'get_totals')) {
+	            $totals = WC()->cart->get_totals();
+	            if (!empty($totals['total'])) {
+	                $amount = (float) $totals['total'];
+	            }
 	        }
-	        return $available_gateways;
 	    }
 
-	    $already_checked = true;
+	    $this->log_info_once_per_request('amount_raw', 'Final calculated amount before formatting', [
+	        'raw_amount' => $amount,
+	    ]);
 
-	    $amount = number_format(WC()->cart->get_total('edit'), 2, '.', '');
+	    if ($amount < 0.01) {
+	        $this->log_info_once_per_request('amount_below_minimum', 'Payment gateway hidden: order total < 0.01');
+	        return $this->hide_gateway($available_gateways, $gateway_id);
+	    }
 
+	    $amount = number_format($amount, 2, '.', '');
+
+	    // Get accounts
 	    if (!method_exists($this, 'get_all_accounts')) {
-	        wc_get_logger()->error('Payment account setup is incomplete. Please ensure at least one valid payment account is configured.', [
-	            'source' => 'bytenft-onramp-payment-gateway'
-	        ]);
-	        unset($available_gateways[$gateway_id]);
-	        $is_visible = false;
-	        return $available_gateways;
+	        $this->log_info_once_per_request('missing_get_all_accounts', 'Missing method get_all_accounts. Gateway misconfigured.');
+	        return $this->hide_gateway($available_gateways, $gateway_id);
 	    }
 
 	    $accounts = $this->get_all_accounts();
-
 	    if (empty($accounts)) {
-	        $log_key = 'bytenft_onramp_log_no_accounts_' . md5($this->id);
-	        if (false === get_transient($log_key)) {
-	            wc_get_logger()->warning('No payment accounts are available. The payment option will not appear during checkout.', [
-	                'source' => 'bytenft-onramp-payment-gateway'
-	            ]);
-	            set_transient($log_key, 1, 10); // Avoid duplicate log for 10 seconds
-	        }
-	        unset($available_gateways[$gateway_id]);
-	        $is_visible = false;
-	        return $available_gateways;
+	        $this->log_info_once_per_request('bnftonramp_log_no_accounts_', 'Gateway hidden: No merchant accounts configured.');
+	        return $this->hide_gateway($available_gateways, $gateway_id);
 	    }
 
-	    usort($accounts, function ($a, $b) {
-	        return $a['priority'] <=> $b['priority'];
-	    });
-
-	    $all_high_priority_accounts_limited = true;
-	    $user_account_active = false;
-
-	    delete_transient('_bytenft_onramp_daily_limit');
+	    usort($accounts, fn($a, $b) => $a['priority'] <=> $b['priority']);
 
 	    $transactionLimitApiUrl = $this->get_api_url('/api/dailylimit');
 	    $accStatusApiUrl = $this->get_api_url('/api/check-merchant-status');
 
-		wc_get_logger()->info('Accounts to evaluate:', [
-		    'source' => 'bytenft-onramp-payment-gateway',
-		    'context' => $accounts
-		]);
+	    $user_account_active = false;
+	    $all_accounts_limited = true;
+
+	    $this->log_info_once_per_request('account_check', 'Evaluating accounts for availability', ['amount' => $amount, 'accounts' => $accounts]);
+
+	   $force_refresh = (
+		    isset($_GET['refresh_accounts'], $_GET['_wpnonce']) &&
+		    $_GET['refresh_accounts'] === '1' &&
+		    wp_verify_nonce(sanitize_text_field(wp_unslash($_GET['_wpnonce'])), 'refresh_accounts_nonce')
+		);
 
 	    foreach ($accounts as $account) {
 	        $public_key = $this->sandbox ? $account['sandbox_public_key'] : $account['live_public_key'];
-			$secret_key = $this->sandbox ? $account['sandbox_secret_key'] : $account['live_secret_key'];
+	        $secret_key = $this->sandbox ? $account['sandbox_secret_key'] : $account['live_secret_key'];
+
 	        $data = [
 	            'is_sandbox'     => $this->sandbox,
 	            'amount'         => $amount,
 	            'api_public_key' => $public_key,
-				'api_secret_key' => $secret_key,
+	            'api_secret_key' => $secret_key,
 	        ];
 
-	        $cache_key = 'bytenft_onramp_daily_limit_' . md5($public_key . $amount);	
+	        $cache_base = 'bnftonramp_daily_limit_' . md5($public_key . $amount);
 
-			$force_refresh = isset($_GET['refresh_accounts']) && $_GET['refresh_accounts'] == '1';
-			$acc_status_response_data = $this->get_cached_api_response($accStatusApiUrl, $data, $cache_key . '_status', 30, $force_refresh);
-
-	       if (
-			    isset($acc_status_response_data['status']) &&
-			    $acc_status_response_data['status'] === 'success'
-			) {
-			    $user_account_active = true;
-			}
-
-
-	        $transaction_limit_response_data = $this->get_cached_api_response($transactionLimitApiUrl, $data, $cache_key . '_limit');
-
-	        if (
-	            isset($transaction_limit_response_data['status']) &&
-	            $transaction_limit_response_data['status'] === 'success'
-	        ) {
-	            $all_high_priority_accounts_limited = false;
+	        $status_data = $this->get_cached_api_response($accStatusApiUrl, $data, $cache_base . '_status', 30, $force_refresh);
+	        if (!empty($status_data['status']) && $status_data['status'] === 'success') {
+	            $user_account_active = true;
 	        }
 
-	        if ($user_account_active && !$all_high_priority_accounts_limited) {
+	        $limit_data = $this->get_cached_api_response($transactionLimitApiUrl, $data, $cache_base . '_limit');
+	        $this->log_info_once_per_request('limit_response_' . $public_key, 'Transaction limit response', [
+	            'sandbox' => $this->sandbox,
+	            'data'    => $limit_data,
+	        ]);
+
+	        if (!empty($limit_data['status']) && $limit_data['status'] === 'success') {
+	            $all_accounts_limited = false;
+	        }
+
+	        if ($user_account_active && !$all_accounts_limited) {
 	            break;
 	        }
 	    }
 
 	    if (!$user_account_active) {
-	        $log_key = 'bytenft_onramp_log_no_active_accounts_' . md5($this->id);
-	        if (false === get_transient($log_key)) {
-	            wc_get_logger()->warning('Payment gateway is hidden. No payment accounts are currently active or approved for transactions.', [
-	                'source' => 'bytenft-onramp-payment-gateway'
-	            ]);
-	            set_transient($log_key, 1, 10);
-	        }
-	        unset($available_gateways[$gateway_id]);
-	        $is_visible = false;
-	        return $available_gateways;
+	        $this->log_info_once_per_request('bnftonramp_log_no_active_accounts_', 'Gateway hidden: No active/approved accounts.');
+	        return $this->hide_gateway($available_gateways, $gateway_id);
 	    }
 
-	    if ($all_high_priority_accounts_limited) {
-	        $log_key = 'bytenft_onramp_log_accounts_limited_' . md5($this->id);
-	        if (false === get_transient($log_key)) {
-	            wc_get_logger()->warning('Payment gateway is hidden. All available accounts have reached their daily transaction limits.', [
-	                'source' => 'bytenft-onramp-payment-gateway'
-	            ]);
-	            set_transient($log_key, 1, 10);
-	        }
-	        unset($available_gateways[$gateway_id]);
-	        $is_visible = false;
-	        return $available_gateways;
+	    if ($all_accounts_limited) {
+	        $this->log_info_once_per_request('bnftonramp_log_accounts_limited_', 'Gateway hidden: All accounts have reached transaction limits.');
+	        return $this->hide_gateway($available_gateways, $gateway_id);
 	    }
 
-	    // ✅ At least one account is valid and within limits
-	    $log_key = 'bytenft_onramp_log_gateway_active_' . md5($this->id);
-	    if (false === get_transient($log_key)) {
-	        wc_get_logger()->info('Payment gateway is active. At least one account is available and within limits.', [
-	            'source' => 'bytenft-onramp-payment-gateway'
-	        ]);
-	        set_transient($log_key, 1, 10);
-	    }
+	    $this->log_info_once_per_request('bnftonramp_log_gateway_active_', 'Gateway is active. At least one account available and within limits.');
 
-	    $is_visible = true;
+	    $GLOBALS[$cache_key] = $available_gateways;
 	    return $available_gateways;
 	}
+
+	private function hide_gateway($available_gateways, $gateway_id)
+	{
+	    unset($available_gateways[$gateway_id]);
+	    $GLOBALS['bnftonramp_gateway_visibility_' . $this->id] = $available_gateways;
+	    return $available_gateways;
+	}
+
+	private function log_info_once_per_request($key, $message, $context = [])
+	{
+	    $log_key = 'bnftonramp_log_once_' . md5($key . $this->id);
+	    
+	    if (!isset($GLOBALS[$log_key])) {
+	        $GLOBALS[$log_key] = true;
+
+	        if (!empty($context)) {
+	            $this->log_info($message, $context);
+	        } else {
+	            $this->log_info($message);
+	        }
+	    }
+	}
+
 
 
 	/**
@@ -1361,10 +1430,16 @@ class BYTENFT_ONRAMP_PAYMENT_GATEWAY extends WC_Payment_Gateway_CC
 
 	private function get_cached_api_response($url, $data, $cache_key, $ttl = 120, $force_refresh = false)
 	{
-	    // Allow ?refresh_accounts=1 in URL to force-refresh cache (useful for testing)
-	    if (!$force_refresh && isset($_GET['refresh_accounts']) && $_GET['refresh_accounts'] == '1') {
-	        $force_refresh = true;
-	    }
+	    // Allow ?refresh_accounts=1&_wpnonce=... in URL to force-refresh cache (useful for testing)
+		if (
+		    !$force_refresh &&
+		    isset($_GET['refresh_accounts']) &&
+		    $_GET['refresh_accounts'] === '1' &&
+		    isset($_GET['_wpnonce']) &&
+		    wp_verify_nonce(sanitize_text_field(wp_unslash($_GET['_wpnonce'])), 'refresh_accounts_nonce')
+		) {
+		    $force_refresh = true;
+		}
 
 	    // If not forcing refresh, return cached version if it exists
 	    if (!$force_refresh) {
@@ -1396,15 +1471,16 @@ class BYTENFT_ONRAMP_PAYMENT_GATEWAY extends WC_Payment_Gateway_CC
 	    $response_data = json_decode($response_body, true);
 
 	    // Cache the response
-	    set_transient($cache_key, $response_data, $ttl); // Default 120s, can be overridden
+	    set_transient($cache_key, $response_data, $ttl);
 
 	    return $response_data;
 	}
 
 
+
 	private function get_all_accounts()
 	{
-	    $accounts = get_option('woocommerce_bytenft_onramp_payment_gateway_accounts', []);
+	    $accounts = get_option('woocommerce_bnftonramp_payment_gateway_accounts', []);
 
 	    if (is_string($accounts)) {
 	        $unserialized = maybe_unserialize($accounts);
@@ -1446,14 +1522,14 @@ class BYTENFT_ONRAMP_PAYMENT_GATEWAY extends WC_Payment_Gateway_CC
 	}
 
 
-	function bytenft_onramp_enqueue_admin_styles($hook)
+	function bnftonramp_enqueue_admin_styles($hook)
 	{
 		// Load only on WooCommerce settings pages
 		if (strpos($hook, 'woocommerce') === false) {
 			return;
 		}
 
-		wp_enqueue_style('bytenft-onramp-admin-style', plugin_dir_url(__FILE__) . 'assets/css/admin-style.css', [], '1.0.0');
+		wp_enqueue_style('bnftonramp-admin-style', plugin_dir_url(__FILE__) . 'assets/css/admin-style.css', [], '1.0.0');
 	}
 
 	/**
@@ -1485,9 +1561,6 @@ class BYTENFT_ONRAMP_PAYMENT_GATEWAY extends WC_Payment_Gateway_CC
 			'Content-Type' => 'application/json',
 			'Authorization' => 'Bearer ' . sanitize_text_field($api_key),
 		];
-
-		// Log API request details
-		//wc_get_logger()->info('Request Data: ' . json_encode($emailData), ['source' => 'bytenft-onramp-payment-gateway']);
 
 		// Send data to byteNFT API
 		$response = wp_remote_post($bytenftOnrampApiUrl, [
@@ -1532,7 +1605,7 @@ class BYTENFT_ONRAMP_PAYMENT_GATEWAY extends WC_Payment_Gateway_CC
 		global $wpdb;
 
 		// Fetch all accounts ordered by priority
-		$settings = get_option('woocommerce_bytenft_onramp_payment_gateway_accounts', []);
+		$settings = get_option('woocommerce_bnftonramp_payment_gateway_accounts', []);
 
 		if (is_string($settings)) {
 			$settings = maybe_unserialize($settings);
@@ -1566,7 +1639,7 @@ class BYTENFT_ONRAMP_PAYMENT_GATEWAY extends WC_Payment_Gateway_CC
 
 		// Concurrency Handling: Lock the selected account
 		foreach ($available_accounts as $account) {
-			$lock_key = "bytenft_onramp_lock_{$account['title']}";
+			$lock_key = "bnftonramp_lock_{$account['title']}";
 
 			// Try to acquire lock
 			if ($this->acquire_lock($lock_key)) {

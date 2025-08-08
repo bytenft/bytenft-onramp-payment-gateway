@@ -1,36 +1,36 @@
-.bytenft-onramp-accounts-container {
+.bnftonramp-accounts-container {
 	max-width: 600px;
 }
 
-.bytenft-onramp-accounts-container .title-priority {
+.bnftonramp-accounts-container .title-priority {
 	display: flex;
 }
 
-.bytenft-onramp-accounts-container .title-priority .account-name {
+.bnftonramp-accounts-container .title-priority .account-name {
 	width: 70% !important;
 }
 
-.bytenft-onramp-accounts-container .title-priority .priority-name {
+.bnftonramp-accounts-container .title-priority .priority-name {
 	width: 28% !important;
 }
 
-.bytenft-onramp-accounts-container .rotated {
+.bnftonramp-accounts-container .rotated {
 	transform: rotate(180deg);
 }
 
-.bytenft-onramp-instructions-url,
-.bytenft-onramp-instructions-url:hover {
+.bnftonramp-instructions-url,
+.bnftonramp-instructions-url:hover {
 	color: #8264D7;
 }
 
-.bytenft-onramp-accounts-container .bytenft-onramp-account {
+.bnftonramp-accounts-container .bnftonramp-account {
 	margin-bottom: 14px !important;
 	border: 1px solid #C5C5C5;
 	border-radius: 7px;
 	padding: 12px;
 }
 
-.bytenft-onramp-accounts-container .add-blog {
+.bnftonramp-accounts-container .add-blog {
 	align-items: start;
 	flex-wrap: wrap;
 	margin-bottom: 10px;
@@ -38,13 +38,13 @@
 	justify-content: space-between;
 }
 
-.bytenft-onramp-accounts-container .account-input input {
+.bnftonramp-accounts-container .account-input input {
 	width: 100% !important;
 	margin-bottom: 8px !important;
 	margin-right: 8px !important;
 }
 
-.bytenft-onramp-accounts-container h4 {
+.bnftonramp-accounts-container h4 {
 	font-size: 17px !important;
 	margin-top: 0 !important;
 	margin-bottom: 0px !important;
@@ -52,7 +52,7 @@
 	align-items: center !important;
 }
 
-.bytenft-onramp-accounts-container h4 i {
+.bnftonramp-accounts-container h4 i {
 	font-size: 13px !important;
 	margin-right: 6px !important;
 	cursor: pointer;
@@ -67,12 +67,12 @@
 	margin-bottom: 20px !important;
 }
 
-.bytenft-onramp-accounts-container .action-button {
+.bnftonramp-accounts-container .action-button {
 	display: flex !important;
 	align-items: center !important;
 }
 
-.bytenft-onramp-accounts-container .action-button button {
+.bnftonramp-accounts-container .action-button button {
 	color: #6B6B6B;
 	font-size: 14px !important;
 	background: transparent;
@@ -80,7 +80,7 @@
 	cursor: pointer;
 }
 
-.bytenft-onramp-accounts-container .bytenft-onramp-account .active-indicator {
+.bnftonramp-accounts-container .bnftonramp-account .active-indicator {
 	font-size: 14px !important;
 	color: #28A745 !important;
 	background: #E7F5EB !important;
@@ -90,12 +90,12 @@
 	margin-right: 8px;
 }
 
-.bytenft-onramp-accounts-container .account-input label {
+.bnftonramp-accounts-container .account-input label {
 	display: block !important;
 	margin-bottom: 5px !important;
 }
 
-.bytenft-onramp-accounts-container .add-account-btn .bytenft-onramp-add-account {
+.bnftonramp-accounts-container .add-account-btn .bnftonramp-add-account {
 	border-radius: 5px;
 	background: #0A0B21;
 	color: #F5F5F5;
@@ -109,37 +109,37 @@
 	line-height: 19px !important;
 }
 
-.bytenft-onramp-accounts-container .add-account-btn .bytenft-onramp-add-account span {
+.bnftonramp-accounts-container .add-account-btn .bnftonramp-add-account span {
 	font-size: 19px;
 	line-height: 12px;
 }
 
-.bytenft-onramp-accounts-container .account-info {
+.bnftonramp-accounts-container .account-info {
 	display: none;
 	margin-top: 18px !important;
 }
 
-.bytenft-onramp-accounts-container .account-toggle-btn {
+.bnftonramp-accounts-container .account-toggle-btn {
 	color: #6B6B6B;
 	font-size: 17px !important;
 	margin-left: 8px !important;
 }
 
-.bytenft-onramp-accounts-container .account-checkbox {
+.bnftonramp-accounts-container .account-checkbox {
 	font-size: 14px !important;
 	display: flex !important;
 	align-items: center !important;
 	margin: 10px 0 15px !important;
 }
 
-.bytenft-onramp-accounts-container .account-checkbox input {
+.bnftonramp-accounts-container .account-checkbox input {
 	width: 15px !important;
 	height: 15px !important;
 	margin-right: 5px !important;
 	margin-left: 0 !important;
 }
 
-.bytenft-onramp-accounts-container .title-blog {
+.bnftonramp-accounts-container .title-blog {
 	display: flex;
 	align-items: center;
 	justify-content: space-between;
@@ -175,18 +175,18 @@
 	background-color: #dc3545;
 }
 
-#bytenft-onramp-sync-status {
+#bnftonramp-sync-status {
 	padding-right: 10px;
 }
 
-.bytenft-onramp-sync-account {
+.bnftonramp-sync-account {
 	justify-content: end;
 	align-items: center;
 	display: flex;
 	margin-bottom: 15px !important;
 }
 
-.bytenft-onramp-sync-account button {
+.bnftonramp-sync-account button {
 	border: 1px solid #8264D7 !important;
 	color: #8264D7 !important;
 	background: #8264D717 !important;
@@ -197,11 +197,11 @@
 	cursor: pointer;
 }
 
-.bytenft-onramp-sync-account .success {
+.bnftonramp-sync-account .success {
 	color: #28A745 !important;
 }
 
-.bytenft-onramp-accounts-container input.error {
+.bnftonramp-accounts-container input.error {
 	border: 1px solid #dc3545;
 	background-color: #fff0f0;
 	color: #dc3545;
