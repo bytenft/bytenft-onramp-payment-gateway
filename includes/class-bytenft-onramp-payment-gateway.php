@@ -1176,8 +1176,7 @@ class BYTENFT_ONRAMP_PAYMENT_GATEWAY extends WC_Payment_Gateway_CC
 	    }
 
 	    if (!is_checkout()) {
-			$this->log_info_once_per_request('not_checkout', 'Gateway check aborted: not on checkout page.');
-	        return $available_gateways;
+			return $available_gateways;
 	    }
 
 	    if (is_admin()) {
