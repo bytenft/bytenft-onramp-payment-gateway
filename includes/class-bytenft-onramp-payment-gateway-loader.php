@@ -210,30 +210,43 @@ class BYTENFT_ONRAMP_PAYMENT_GATEWAY_Loader
 			
 			
 		$payment_return_url = esc_url($order->get_checkout_order_received_url());
-		
-		if (isset($response_data['transaction_status']) && $response_data['transaction_status'] == "canceled") {
-			wp_send_json_success(['status' => 'cancelled', 'redirect_url' => $payment_return_url]);
-			exit;
+
+		$gateway_id = 'bnftonramp'; // Replace with your gateway ID
+		if (isset($payment_gateways[$gateway_id])) {
+			$gateway = $payment_gateways[$gateway_id];
+			$configured_order_status = sanitize_text_field($gateway->get_option('order_status'));
+		} else {
+			wp_send_json_error(['message' => 'Payment gateway not found.']);
+			wp_die();
 		}
 
 		// Determine order status
-		if ($order->is_paid()) {
+		if ($order->is_paid() || (isset($response_data['transaction_status']) && ($response_data['transaction_status'] == "success" || $response_data['transaction_status'] == "paid" || $response_data['transaction_status'] == "processing"))) {
+			if ($order->is_paid() && (isset($response_data['transaction_status']) && ($response_data['transaction_status'] == "success" || $response_data['transaction_status'] == "paid" || $response_data['transaction_status'] == "processing"))) {
+				$order->update_status($configured_order_status, 'Order marked as ' . $configured_order_status . ' by ByteNFT Onramp.');
+			}
 			wp_send_json_success(['status' => 'success', 'redirect_url' => $payment_return_url]);
 			exit;
 		}
-
-		if ($order->has_status('failed')) {
+		
+		if ($order->has_status('failed') || (isset($response_data['transaction_status']) && $response_data['transaction_status'] == "failed")) {
+			if ($order->has_status('failed') && (isset($response_data['transaction_status']) && $response_data['transaction_status'] == "failed")) {
+				$order->update_status('failed', 'Order marked as failed by ByteNFT Onramp.');
+			}
 			wp_send_json_success(['status' => 'failed', 'redirect_url' => $payment_return_url]);
+			exit;
+		}
+		
+		if ($order->has_status('cancelled') || (isset($response_data['transaction_status']) && $response_data['transaction_status'] == "canceled")) {
+			if ($order->has_status('cancelled') && (isset($response_data['transaction_status']) && $response_data['transaction_status'] == "canceled")) {
+				$order->update_status('canceled', 'Order marked as canceled by ByteNFT Onramp.');
+			}
+			wp_send_json_success(['status' => 'cancelled', 'redirect_url' => $payment_return_url]);
 			exit;
 		}
 
 		if ($order->has_status(['on-hold', 'pending'])) {
 			wp_send_json_success(['status' => 'pending', 'redirect_url' => $payment_return_url]);
-			exit;
-		}
-
-		if ($order->has_status('cancelled') || $order->has_status('canceled')) {
-			wp_send_json_success(['status' => 'cancelled', 'redirect_url' => $payment_return_url]);
 			exit;
 		}
 
