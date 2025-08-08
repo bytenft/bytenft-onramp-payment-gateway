@@ -184,16 +184,7 @@ class BYTENFT_ONRAMP_PAYMENT_GATEWAY_Loader
 			return new WP_REST_Response(['error' => esc_html__('Order not found', 'bytenft-onramp-payment-gateway')], 404);
 		}
 
-		wc_get_logger()->info(' check payment status fnc response ', [
-				'source'  => 'bytenft-onramp-payment-gateway',
-				'context' => [
-					'order_id'           => $order_id,
-					'order_status' => $order->get_status()
-				],
-			]);
-
-
-		$payment_return_url = esc_url($order->get_checkout_order_received_url());
+		$payment_return_url = $order->get_checkout_order_received_url();
 
 		// Determine order status
 		if ($order->is_paid()) {
@@ -316,8 +307,7 @@ class BYTENFT_ONRAMP_PAYMENT_GATEWAY_Loader
 				wp_die();
 			}
 
-			$payment_return_url = esc_url($order->get_checkout_order_received_url());
-
+			$payment_return_url = $order->get_checkout_order_received_url();
 
 			if (isset($response_data['transaction_status'])) {
 				// Handle transaction status from API
