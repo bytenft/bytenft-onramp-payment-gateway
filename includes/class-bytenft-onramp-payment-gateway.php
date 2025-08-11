@@ -1174,6 +1174,12 @@ class BYTENFT_ONRAMP_PAYMENT_GATEWAY extends WC_Payment_Gateway_CC
 
 		 // Unique cache/log key per cart state
 	    $cart_hash = WC()->cart ? WC()->cart->get_cart_hash() : 'no_cart';
+
+		// Skip logging if cart_hash is empty or 'no_cart' (cart not initialized)
+	    if (empty($cart_hash) || $cart_hash === 'no_cart') {
+	        return $available_gateways;
+	    }
+
 	    $cache_key = 'bnftonramp_gateway_visibility_' . $gateway_id . '_' . $cart_hash;
 
 	    // ✅ Avoid running multiple times for the same cart_hash in the same request
