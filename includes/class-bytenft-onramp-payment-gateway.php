@@ -1164,48 +1164,137 @@ class BYTENFT_ONRAMP_PAYMENT_GATEWAY extends WC_Payment_Gateway_CC
 
 	public function hide_custom_payment_gateway_conditionally($available_gateways)
 	{
-	    $gateway_id = $this->id;
-	    $cache_key = 'bnftonramp_gateway_visibility_' . $gateway_id;
+		$gateway_id = $this->id;
 
 	    if (!isset($available_gateways[$gateway_id])) {
-			$this->log_info_once_per_request('gateway_not_enabled', 'Plugin active, but gateway not enabled in WooCommerce settings.');
 	        return $available_gateways;
 	    }
+
+	    $cache_key = 'bnftonramp_gateway_visibility_' . $gateway_id;
+
+		 // Unique cache/log key per cart state
+	    $cart_hash = WC()->cart ? WC()->cart->get_cart_hash() : 'no_cart';
+	    $cache_key = 'bnftonramp_gateway_visibility_' . $gateway_id . '_' . $cart_hash;
+
+	    // ✅ Avoid running multiple times for the same cart_hash in the same request
+	    static $processed_hashes = [];
+	    if (in_array($cart_hash, $processed_hashes, true)) {
+	        return $available_gateways;
+	    }
+	    $processed_hashes[] = $cart_hash;
+
+		$this->log_info_once_per_session(
+	        'gateway_check_start_' . $cart_hash,
+	        'Payment Option Check Started',
+	        ['cart_hash' => $cart_hash]
+	    );
+
+		// ✅ Handle both page load & AJAX differently
+	    $is_ajax_order_review = (
+	        defined('DOING_AJAX') &&
+	        DOING_AJAX &&
+	        isset($_REQUEST['wc-ajax']) &&
+	        $_REQUEST['wc-ajax'] === 'update_order_review'
+	    );
+
+	   $this->log_info_once_per_session(
+		    'request_context_' . $cart_hash,
+		    'Checking payment option visibility',
+		    [
+		        'cart_hash'       => $cart_hash,
+		        'Request Type'    => $is_ajax_order_review ? 'Cart update (AJAX)' : 'Checkout page load',
+		        'On Checkout Page'=> is_checkout() ? 'Yes' : 'No'
+		    ]
+		);
+
+
+	    $amount = 0.00;
 
 	    if (isset($GLOBALS[$cache_key])) {
 	        return $GLOBALS[$cache_key];
 	    }
 
-	    if (!is_checkout()) {
-			return $available_gateways;
-	    }
+	    if (!is_checkout() && !$is_ajax_order_review) {
+		    return $available_gateways;
+		}
 
 	    if (is_admin()) {
-			$this->log_info_once_per_request('in_admin', 'Gateway check bypassed in admin mode.');
+			$this->log_info_once_per_session(
+			    'in_admin_' . $cart_hash,
+			    'Payment option check skipped (admin area)',
+			    ['cart_hash' => $cart_hash]
+			);
+
+			$this->log_info_once_per_session(
+			    'gateway_check_end_' . $cart_hash,
+			    'Payment Option Check Finished',
+			    ['cart_hash' => $cart_hash]
+			);
+
 	        $this->get_updated_account();
 	        return $available_gateways;
 	    }
-    
-
-	    // Calculate order amount
-	    $amount = 0.00;
-	    if (WC()->cart && method_exists(WC()->cart, 'get_total')) {
-	        $amount = (float) WC()->cart->get_total('raw');
-
-	        if ($amount < 0.01 && method_exists(WC()->cart, 'get_totals')) {
+	   
+	    if (WC()->cart) {
+	        if ($is_ajax_order_review) {
+	            // During AJAX, cart totals are often not recalculated yet
+	            // Get from totals array instead of get_total('raw')
 	            $totals = WC()->cart->get_totals();
-	            if (!empty($totals['total'])) {
-	                $amount = (float) $totals['total'];
+	            $amount = isset($totals['total']) ? (float) $totals['total'] : 0.00;
+
+	            // If still zero but cart has items, skip hiding for now
+	            if ($amount < 0.01 && WC()->cart->get_cart_contents_count() > 0) {
+	               $this->log_info_once_per_session(
+					    'ajax_skip_' . $cart_hash,
+					    'Skipping hide during AJAX recalculation (cart has items, amount 0)',
+					    ['cart_hash' => $cart_hash]
+					);
+
+					$this->log_info_once_per_session(
+					    'gateway_check_end_' . $cart_hash,
+					    'Payment Option Check Finished',
+					    ['cart_hash' => $cart_hash]
+					);
+	                return $available_gateways;
+	            }
+	        } else {
+	            // Normal page load
+	            $amount = (float) WC()->cart->get_total('raw');
+	            if ($amount < 0.01) {
+	                // Try fallback
+	                $totals = WC()->cart->get_totals();
+	                if (!empty($totals['total'])) {
+	                    $amount = (float) $totals['total'];
+	                }
 	            }
 	        }
 	    }
 
-	    $this->log_info_once_per_request('amount_raw', 'Final calculated amount before formatting', [
-	        'raw_amount' => $amount,
-	    ]);
+	    $this->log_info_once_per_session(
+		    'cart_amount_' . $cart_hash,
+		    'Cart total detected',
+		    [
+		        'Amount'    => $amount,
+		        'cart_hash' => $cart_hash
+		    ]
+		);
 
+	    // Hide if truly below minimum
 	    if ($amount < 0.01) {
-	        $this->log_info_once_per_request('amount_below_minimum', 'Payment gateway hidden: order total < 0.01');
+			$this->log_info_once_per_session(
+			    'hide_reason_low_amount_' . $cart_hash,
+			    'Payment option hidden: order total below minimum',
+			    [
+			        'cart_hash' => $cart_hash,
+			        'Amount'    => $amount
+			    ]
+			);
+			$this->log_info_once_per_session(
+			    'gateway_check_end_' . $cart_hash,
+			    'Payment Option Check Finished',
+			    ['cart_hash' => $cart_hash]
+			);
+
 	        return $this->hide_gateway($available_gateways, $gateway_id);
 	    }
 
@@ -1213,13 +1302,45 @@ class BYTENFT_ONRAMP_PAYMENT_GATEWAY extends WC_Payment_Gateway_CC
 
 	    // Get accounts
 	    if (!method_exists($this, 'get_all_accounts')) {
-	        $this->log_info_once_per_request('missing_get_all_accounts', 'Missing method get_all_accounts. Gateway misconfigured.');
+	       $this->log_info_once_per_session(
+			    'missing_get_all_accounts_' . $cart_hash,
+			    'Gateway misconfigured: missing account retrieval method',
+			    ['cart_hash' => $cart_hash]
+			);
+			$this->log_info_once_per_session(
+			    'gateway_check_end_' . $cart_hash,
+			    'Payment Option Check Finished',
+			    ['cart_hash' => $cart_hash]
+			);
+
 	        return $this->hide_gateway($available_gateways, $gateway_id);
 	    }
 
 	    $accounts = $this->get_all_accounts();
+
+		$this->log_info_once_per_session(
+		    'account_check_' . $cart_hash,
+		    'Checking payment provider accounts',
+		    [
+				'accounts' => $accounts,
+		        'Number of Accounts Found' => count($accounts),
+		        'cart_hash' => $cart_hash
+		    ]
+		);
+
+
 	    if (empty($accounts)) {
-	        $this->log_info_once_per_request('bnftonramp_log_no_accounts_', 'Gateway hidden: No merchant accounts configured.');
+	        $this->log_info_once_per_session(
+			    'no_accounts_' . $cart_hash,
+			    'Payment option hidden: no merchant accounts configured',
+			    ['cart_hash' => $cart_hash]
+			);
+			$this->log_info_once_per_session(
+			    'gateway_check_end_' . $cart_hash,
+			    'Payment Option Check Finished',
+			    ['cart_hash' => $cart_hash]
+			);
+
 	        return $this->hide_gateway($available_gateways, $gateway_id);
 	    }
 
@@ -1231,7 +1352,16 @@ class BYTENFT_ONRAMP_PAYMENT_GATEWAY extends WC_Payment_Gateway_CC
 	    $user_account_active = false;
 	    $all_accounts_limited = true;
 
-	    $this->log_info_once_per_request('account_check', 'Evaluating accounts for availability', ['amount' => $amount, 'accounts' => $accounts]);
+	   $this->log_info_once_per_session(
+		    'account_check_' . $cart_hash,
+		    'Evaluating accounts for availability',
+		    [
+		        'cart_hash' => $cart_hash,
+		        'Amount'    => $amount,
+		        'Accounts'  => $accounts
+		    ]
+		);
+
 
 	   $force_refresh = (
 		    isset($_GET['refresh_accounts'], $_GET['_wpnonce']) &&
@@ -1258,10 +1388,16 @@ class BYTENFT_ONRAMP_PAYMENT_GATEWAY extends WC_Payment_Gateway_CC
 	        }
 
 	        $limit_data = $this->get_cached_api_response($transactionLimitApiUrl, $data, $cache_base . '_limit');
-	        $this->log_info_once_per_request('limit_response_' . $public_key, 'Transaction limit response', [
-	            'sandbox' => $this->sandbox,
-	            'data'    => $limit_data,
-	        ]);
+	       $this->log_info_once_per_session(
+			    'limit_response_' . $public_key . '_' . $cart_hash,
+			    'Transaction limit response',
+			    [
+			        'cart_hash' => $cart_hash,
+			        'Sandbox'   => $this->sandbox,
+			        'Data'      => $limit_data
+			    ]
+			);
+
 
 	        if (!empty($limit_data['status']) && $limit_data['status'] === 'success') {
 	            $all_accounts_limited = false;
@@ -1273,16 +1409,50 @@ class BYTENFT_ONRAMP_PAYMENT_GATEWAY extends WC_Payment_Gateway_CC
 	    }
 
 	    if (!$user_account_active) {
-	        $this->log_info_once_per_request('bnftonramp_log_no_active_accounts_', 'Gateway hidden: No active/approved accounts.');
+	       $this->log_info_once_per_session(
+			    'no_active_accounts_' . $cart_hash,
+			    'Payment option hidden: no active accounts',
+			    ['cart_hash' => $cart_hash]
+			);
+
+			$this->log_info_once_per_session(
+			    'gateway_check_end_' . $cart_hash,
+			    'Payment Option Check Finished',
+			    ['cart_hash' => $cart_hash]
+			);
+
 	        return $this->hide_gateway($available_gateways, $gateway_id);
 	    }
 
 	    if ($all_accounts_limited) {
-	        $this->log_info_once_per_request('bnftonramp_log_accounts_limited_', 'Gateway hidden: All accounts have reached transaction limits.');
+	       $this->log_info_once_per_session(
+			    'accounts_limited_' . $cart_hash,
+			    'Payment option hidden: all accounts reached transaction limits',
+			    ['cart_hash' => $cart_hash]
+			);
+
+			$this->log_info_once_per_session(
+			    'gateway_check_end_' . $cart_hash,
+			    'Payment Option Check Finished',
+			    ['cart_hash' => $cart_hash]
+			);
+
 	        return $this->hide_gateway($available_gateways, $gateway_id);
 	    }
 
-	    $this->log_info_once_per_request('bnftonramp_log_gateway_active_', 'Gateway is active. At least one account available and within limits.');
+		$this->log_info_once_per_session(
+		    'gateway_active_' . $cart_hash,
+		    'Payment option available: account active and within limits',
+		    ['cart_hash' => $cart_hash]
+		);
+
+		// End log
+		$this->log_info_once_per_session(
+		    'gateway_check_end_' . $cart_hash,
+		    'Payment Option Check Finished',
+		    ['cart_hash' => $cart_hash]
+		);
+
 
 	    $GLOBALS[$cache_key] = $available_gateways;
 	    return $available_gateways;
@@ -1295,18 +1465,31 @@ class BYTENFT_ONRAMP_PAYMENT_GATEWAY extends WC_Payment_Gateway_CC
 	    return $available_gateways;
 	}
 
-	private function log_info_once_per_request($key, $message, $context = [])
+	private function log_info_once_per_session($key, $message, $context = [])
 	{
-	    $log_key = 'bnftonramp_log_once_' . md5($key . $this->id);
-	    
-	    if (!isset($GLOBALS[$log_key])) {
-	        $GLOBALS[$log_key] = true;
+	    if (!WC()->session) {
+	        return; // Session not started yet
+	    }
 
-	        if (!empty($context)) {
-	            $this->log_info($message, $context);
-	        } else {
-	            $this->log_info($message);
-	        }
+	    // Extract cart_hash from context if provided, else fallback
+	    $cart_hash = isset($context['cart_hash']) ? $context['cart_hash'] : 'no_cart';
+
+	    // Make the log key unique for both the event key and current cart state
+	    $log_key = 'bnftonramp_log_once_' . md5($key . $this->id . $cart_hash);
+
+	    // Check if we've already logged for this cart state
+	    if (WC()->session->get($log_key)) {
+	        return;
+	    }
+
+	    // Mark as logged for this cart state
+	    WC()->session->set($log_key, true);
+
+	    // Perform the actual logging
+	    if (!empty($context)) {
+	        $this->log_info($message, $context);
+	    } else {
+	        $this->log_info($message);
 	    }
 	}
 
