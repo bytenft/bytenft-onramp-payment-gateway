@@ -125,8 +125,9 @@ class BYTENFT_ONRAMP_PAYMENT_GATEWAY extends WC_Payment_Gateway_CC
 
 		if ( isset( $_POST['accounts'] ) && is_array( $_POST['accounts'] ) ) {
 		    // Step 1: Unslash the whole array first.
-		    $unslashed_accounts = wp_unslash( $_POST['accounts'] ); // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.MissingUnslash
-
+			// phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized, WordPress.Security.ValidatedSanitizedInput.MissingUnslash
+			$unslashed_accounts = wp_unslash( $_POST['accounts'] );
+			
 		    // Step 2: Sanitize each value.
 		    $raw_accounts = array_map(
 		        static function ( $account ) {
@@ -165,24 +166,23 @@ class BYTENFT_ONRAMP_PAYMENT_GATEWAY extends WC_Payment_Gateway_CC
 	        }
 
 	        if (empty($account_title) || empty($live_public_key) || empty($live_secret_key)) {
-		    /* translators: %s: The account title entered by the user. */
-		    $errors[] = sprintf(
-		        __( 'Account "%s": Title, Live Public Key, and Live Secret Key are required.', 'bytenft-onramp-payment-gateway' ),
-		        $account_title
-		    );
-		    $this->log_info("Validation failed: missing required fields for account '{$account_title}'");
-		    continue;
-		}
+				// translators: %s: The account title entered by the user.
+			    $errors[] = sprintf(__( 'Account "%s": Title, Live Public Key, and Live Secret Key are required.', 'bytenft-onramp-payment-gateway' ),$account_title);
+			    $this->log_info("Validation failed: missing required fields for account '{$account_title}'");
+			    continue;
+			}
 
 
 	        $live_combined = $live_public_key . '|' . $live_secret_key;
 	        if (in_array($live_combined, $unique_live_keys, true)) {
+				// translators: %s: Live Public Key.
 	            $errors[] = sprintf(__('Account "%s": Live Public Key and Live Secret Key must be unique.', 'bytenft-onramp-payment-gateway'), $account_title);
 	            $this->log_info("Validation failed: duplicate live keys for account '{$account_title}'");
 	            continue;
 	        }
 
 	        if ($live_public_key === $live_secret_key) {
+				// translators: %s: Live Public Key.
 	            $errors[] = sprintf(__('Account "%s": Live Public Key and Live Secret Key must be different.', 'bytenft-onramp-payment-gateway'), $account_title);
 	            $this->log_info("Validation warning: live keys are identical for account '{$account_title}'");
 	        }
@@ -193,12 +193,14 @@ class BYTENFT_ONRAMP_PAYMENT_GATEWAY extends WC_Payment_Gateway_CC
 	            $sandbox_combined = $sandbox_public_key . '|' . $sandbox_secret_key;
 
 	            if (in_array($sandbox_combined, $unique_sandbox_keys, true)) {
+					// translators: %s: Sandbox Public Key and Sandbox Secret Key.
 	                $errors[] = sprintf(__('Account "%s": Sandbox Public Key and Sandbox Secret Key must be unique.', 'bytenft-onramp-payment-gateway'), $account_title);
 	                $this->log_info("Validation failed: duplicate sandbox keys for account '{$account_title}'");
 	                continue;
 	            }
 
 	            if ($sandbox_public_key === $sandbox_secret_key) {
+					// translators: %s: Sandbox Public Key and Sandbox Secret Key.
 	                $errors[] = sprintf(__('Account "%s": Sandbox Public Key and Sandbox Secret Key must be different.', 'bytenft-onramp-payment-gateway'), $account_title);
 	                $this->log_info("Validation warning: sandbox keys are identical for account '{$account_title}'");
 	            }
@@ -356,14 +358,11 @@ class BYTENFT_ONRAMP_PAYMENT_GATEWAY extends WC_Payment_Gateway_CC
 	            'desc_tip'    => true,
 	        ],
 
-	        'instructions' => [
+	         'instructions' => [
 	            'title'       => __('Instructions', 'bytenft-onramp-payment-gateway'),
 	            'type'        => 'title',
-	            'description' => sprintf(
-	                __('To configure this gateway, %1$sGet your API keys from your merchant account: Developer Settings > API Keys.%2$s', 'bytenft-onramp-payment-gateway'),
-	                $dev_instructions_link,
-	                ''
-	            ),
+				// translators: 1: Opening HTML link tag for "Get your API keys" instructions, 2: Closing HTML link tag.
+	            'description' => sprintf(__('To configure this gateway, %1$sGet your API keys from your merchant account: Developer Settings > API Keys.%2$s', 'bytenft-onramp-payment-gateway'),$dev_instructions_link,''),
 	            'desc_tip'    => true,
 	        ],
 
