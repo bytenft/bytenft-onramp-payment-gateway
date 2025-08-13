@@ -11,7 +11,6 @@ require_once plugin_dir_path(__FILE__) . 'config.php';
 class BYTENFT_ONRAMP_PAYMENT_GATEWAY extends WC_Payment_Gateway_CC
 {
 	const ID = 'bnftonramp';
-	const TEXT_DOMAIN = 'bytenft-onramp-payment-gateway';
 
 	protected $sandbox;
 	private $base_url;
@@ -122,7 +121,23 @@ class BYTENFT_ONRAMP_PAYMENT_GATEWAY extends WC_Payment_Gateway_CC
 	    $unique_sandbox_keys = [];
 	    $normalized_index = 0;
 
-	    $raw_accounts = isset($_POST['accounts']) ? wp_unslash($_POST['accounts']) : [];
+	    $raw_accounts = [];
+
+		if ( isset( $_POST['accounts'] ) && is_array( $_POST['accounts'] ) ) {
+		    // Step 1: Unslash the whole array first.
+		    $unslashed_accounts = wp_unslash( $_POST['accounts'] ); // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.MissingUnslash
+
+		    // Step 2: Sanitize each value.
+		    $raw_accounts = array_map(
+		        static function ( $account ) {
+		            return is_array( $account )
+		                ? array_map( 'sanitize_text_field', $account )
+		                : sanitize_text_field( $account );
+		        },
+		        $unslashed_accounts
+		    );
+		}
+
 	    if (!is_array($raw_accounts) || empty($raw_accounts)) {
 	        $errors[] = __('You cannot delete all accounts. At least one valid payment account must be configured.', 'bytenft-onramp-payment-gateway');
 	        $this->log_info('No accounts submitted in admin options.');
@@ -150,10 +165,15 @@ class BYTENFT_ONRAMP_PAYMENT_GATEWAY extends WC_Payment_Gateway_CC
 	        }
 
 	        if (empty($account_title) || empty($live_public_key) || empty($live_secret_key)) {
-	            $errors[] = sprintf(__('Account "%s": Title, Live Public Key, and Live Secret Key are required.', 'bytenft-onramp-payment-gateway'), $account_title);
-	            $this->log_info("Validation failed: missing required fields for account '{$account_title}'");
-	            continue;
-	        }
+		    /* translators: %s: The account title entered by the user. */
+		    $errors[] = sprintf(
+		        __( 'Account "%s": Title, Live Public Key, and Live Secret Key are required.', 'bytenft-onramp-payment-gateway' ),
+		        $account_title
+		    );
+		    $this->log_info("Validation failed: missing required fields for account '{$account_title}'");
+		    continue;
+		}
+
 
 	        $live_combined = $live_public_key . '|' . $live_secret_key;
 	        if (in_array($live_combined, $unique_live_keys, true)) {
@@ -308,39 +328,39 @@ class BYTENFT_ONRAMP_PAYMENT_GATEWAY extends WC_Payment_Gateway_CC
 	    $dev_instructions_link = sprintf(
 	        '<strong><a class="bnftonramp-instructions-url" href="%s" target="_blank">%s</a></strong><br>',
 	        esc_url($this->base_url . '/developers'),
-	        __('click here to access your developer account', self::TEXT_DOMAIN)
+	        __('click here to access your developer account', 'bytenft-onramp-payment-gateway')
 	    );
 
 	    return apply_filters('woocommerce_gateway_settings_fields_' . $this->id, [
 
 	        'enabled' => [
-	            'title'       => __('Enable/Disable', self::TEXT_DOMAIN),
-	            'label'       => __('Enable ByteNFT Onramp Payment Gateway', self::TEXT_DOMAIN),
+	            'title'       => __('Enable/Disable', 'bytenft-onramp-payment-gateway'),
+	            'label'       => __('Enable ByteNFT Onramp Payment Gateway', 'bytenft-onramp-payment-gateway'),
 	            'type'        => 'checkbox',
 	            'default'     => 'yes',
 	        ],
 
 	        'title' => [
-	            'title'       => __('Title', self::TEXT_DOMAIN),
+	            'title'       => __('Title', 'bytenft-onramp-payment-gateway'),
 	            'type'        => 'text',
-	            'description' => __('This controls the title which the user sees during checkout.', self::TEXT_DOMAIN),
-	            'default'     => __('Pay with Debit Cards (Visa, Mastercard, or Apple Pay)', self::TEXT_DOMAIN),
+	            'description' => __('This controls the title which the user sees during checkout.', 'bytenft-onramp-payment-gateway'),
+	            'default'     => __('Pay with Debit Cards (Visa, Mastercard, or Apple Pay)', 'bytenft-onramp-payment-gateway'),
 	            'desc_tip'    => true,
 	        ],
 
 	        'description' => [
-	            'title'       => __('Description', self::TEXT_DOMAIN),
+	            'title'       => __('Description', 'bytenft-onramp-payment-gateway'),
 	            'type'        => 'text',
-	            'description' => __('Provide a brief description of the payment option.', self::TEXT_DOMAIN),
-	            'default'     => __('Pay easily using Visa, Mastercard Debit, Apple Pay, or your Coinbase account...', self::TEXT_DOMAIN),
+	            'description' => __('Provide a brief description of the payment option.', 'bytenft-onramp-payment-gateway'),
+	            'default'     => __('Pay easily using Visa, Mastercard Debit, Apple Pay, or your Coinbase account...', 'bytenft-onramp-payment-gateway'),
 	            'desc_tip'    => true,
 	        ],
 
 	        'instructions' => [
-	            'title'       => __('Instructions', self::TEXT_DOMAIN),
+	            'title'       => __('Instructions', 'bytenft-onramp-payment-gateway'),
 	            'type'        => 'title',
 	            'description' => sprintf(
-	                __('To configure this gateway, %1$sGet your API keys from your merchant account: Developer Settings > API Keys.%2$s', self::TEXT_DOMAIN),
+	                __('To configure this gateway, %1$sGet your API keys from your merchant account: Developer Settings > API Keys.%2$s', 'bytenft-onramp-payment-gateway'),
 	                $dev_instructions_link,
 	                ''
 	            ),
@@ -348,37 +368,37 @@ class BYTENFT_ONRAMP_PAYMENT_GATEWAY extends WC_Payment_Gateway_CC
 	        ],
 
 	        'sandbox' => [
-	            'title'       => __('Sandbox', self::TEXT_DOMAIN),
-	            'label'       => __('Enable Sandbox Mode', self::TEXT_DOMAIN),
+	            'title'       => __('Sandbox', 'bytenft-onramp-payment-gateway'),
+	            'label'       => __('Enable Sandbox Mode', 'bytenft-onramp-payment-gateway'),
 	            'type'        => 'checkbox',
-	            'description' => __('Use sandbox API keys (real payments will not be taken).', self::TEXT_DOMAIN),
+	            'description' => __('Use sandbox API keys (real payments will not be taken).', 'bytenft-onramp-payment-gateway'),
 	            'default'     => 'no',
 	        ],
 
 	        'accounts' => [
-	            'title'       => __('Payment Accounts', self::TEXT_DOMAIN),
+	            'title'       => __('Payment Accounts', 'bytenft-onramp-payment-gateway'),
 	            'type'        => 'accounts_repeater',
-	            'description' => __('Add multiple payment accounts dynamically.', self::TEXT_DOMAIN),
+	            'description' => __('Add multiple payment accounts dynamically.', 'bytenft-onramp-payment-gateway'),
 	        ],
 
 	        'order_status' => [
-	            'title'       => __('Order Status', self::TEXT_DOMAIN),
+	            'title'       => __('Order Status', 'bytenft-onramp-payment-gateway'),
 	            'type'        => 'select',
-	            'description' => __('Order status after successful payment.', self::TEXT_DOMAIN),
+	            'description' => __('Order status after successful payment.', 'bytenft-onramp-payment-gateway'),
 	            'default'     => '',
 	            'id'          => 'order_status_select',
 	            'desc_tip'    => true,
 	            'options'     => [
-	                'processing' => __('Processing', self::TEXT_DOMAIN),
-	                'completed'  => __('Completed', self::TEXT_DOMAIN),
+	                'processing' => __('Processing', 'bytenft-onramp-payment-gateway'),
+	                'completed'  => __('Completed', 'bytenft-onramp-payment-gateway'),
 	            ],
 	        ],
 
 	        'show_consent_checkbox' => [
-	            'title'       => __('Show Consent Checkbox', self::TEXT_DOMAIN),
-	            'label'       => __('Enable consent checkbox on checkout page', self::TEXT_DOMAIN),
+	            'title'       => __('Show Consent Checkbox', 'bytenft-onramp-payment-gateway'),
+	            'label'       => __('Enable consent checkbox on checkout page', 'bytenft-onramp-payment-gateway'),
 	            'type'        => 'checkbox',
-	            'description' => __('Show a checkbox for user consent during checkout.', self::TEXT_DOMAIN),
+	            'description' => __('Show a checkbox for user consent during checkout.', 'bytenft-onramp-payment-gateway'),
 	            'default'     => 'no',
 	        ],
 
