@@ -77,7 +77,7 @@ function bnftonramp_trigger_sync()
 		$loader = BYTENFT_ONRAMP_PAYMENT_GATEWAY_Loader::get_instance();
 		if (method_exists($loader, 'handle_cron_event')) {
 			wc_get_logger()->info('Sync account for migration started.', [
-				'source' => 'bnftonramp-payment-gateway',
+				'source' => 'bytenft-onramp-payment-gateway',
 				'context' => ['sync_id' => uniqid('migrate_', true)]
 			]);
 			$loader->handle_cron_event();

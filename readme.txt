@@ -3,7 +3,7 @@ Contributors: ByteNFT Onramp
 Tags: woocommerce, payment gateway, fiat, ByteNFT Onramp
 Requires at least: 5.0
 Tested up to: 6.8
-Stable tag: 1.0.3
+Stable tag: 1.0.4
 License: GPLv3 or later
 License URI: https://www.gnu.org/licenses/gpl-3.0.html
 
@@ -27,6 +27,12 @@ Visit the DFin website and log in to your account. Navigate to Developer Setting
 
 == Changelog ==
 
+= 1.0.4 =
+* Fixed an issue where incorrect amounts were passed during checkout.
+* Properly unslashed `_wpnonce` before verification for better compatibility.
+* Fixed a bug where order status was not updated correctly after cancelled payments.
+* Reduced unnecessary gateway visibility logs by limiting them to the checkout page.
+
 = 1.0.3 =
 * Fixed an issue where changes to account settings were not properly synced after refreshing the admin settings page.
 * Improved handling of failed transactions during checkout with proper redirection and error messaging.
@@ -46,6 +52,9 @@ Visit the DFin website and log in to your account. Navigate to Developer Setting
 * Initial release.
 
 == Upgrade Notice ==
+
+= 1.0.4 =
+This update fixes incorrect amount handling during checkout, improves nonce verification for broader compatibility, and resolves an issue where order statuses were not correctly updated after cancelled payments.
 
 = 1.0.3 =
 This update fixes account settings sync issues, improves failed transaction handling during checkout, and enhances overall reliability. It's recommended for all users.

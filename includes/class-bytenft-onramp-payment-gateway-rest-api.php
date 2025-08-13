@@ -160,7 +160,7 @@ class BYTENFT_ONRAMP_PAYMENT_GATEWAY_REST_API
 				if (WC()->cart) {
 					WC()->cart->empty_cart();
 				}
-				$payment_return_url = esc_url($order->get_checkout_order_received_url());
+				$payment_return_url = $order->get_checkout_order_received_url();
 				return new WP_REST_Response(['success' => true, 'message' => 'Order status already updated or no change required', 'payment_return_url' => $payment_return_url], 200);
 			}
 		}elseif ($api_order_status === 'failed') {
@@ -188,7 +188,7 @@ class BYTENFT_ONRAMP_PAYMENT_GATEWAY_REST_API
 			$this->logger->info('ByteNFT Onramp API requested status "' . esc_html($api_order_status) . '" for order ' . esc_html($order_id) . '. Current status is "' . esc_html($current_order_status) . '". No specific action for this API status defined.', array('source' => 'bytenft-onramp-payment-gateway'));
 
 			// If no action is needed for this specific API status, we still return success to acknowledge receipt.
-			$payment_return_url = esc_url($order->get_checkout_order_received_url());
+			$payment_return_url = $order->get_checkout_order_received_url();
 			return new WP_REST_Response(['success' => true, 'message' => 'Request received, no status change performed based on API status', 'payment_return_url' => $payment_return_url], 200);
 		}
 
@@ -221,7 +221,7 @@ class BYTENFT_ONRAMP_PAYMENT_GATEWAY_REST_API
 		}
 
 		// Return a successful response to ByteNFT Onramp API.
-		$payment_return_url = esc_url($order->get_checkout_order_received_url());
+		$payment_return_url = $order->get_checkout_order_received_url();
 		return new WP_REST_Response(['success' => true, 'message' => 'Order status processed successfully', 'payment_return_url' => $payment_return_url], 200);
 	}
 }
