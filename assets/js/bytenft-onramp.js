@@ -119,8 +119,7 @@ jQuery(function ($) {
 		);
 
 		if (!popupWindow || popupWindow.closed || typeof popupWindow.closed === 'undefined') {
-			const popup = window.open('', 'paymentPopup', 'width=600,height=700,scrollbars=yes,resizable=yes');
-			popup.location.href = sanitizedPaymentLink;
+			window.location.href = sanitizedPaymentLink;
 			resetButton();
 		} else {
 			popupInterval = setInterval(function () {
