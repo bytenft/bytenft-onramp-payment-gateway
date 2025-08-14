@@ -119,7 +119,11 @@ jQuery(function ($) {
 		);
 
 		if (!popupWindow || popupWindow.closed || typeof popupWindow.closed === 'undefined') {
-			const popup = window.open('', 'paymentPopup', 'width=600,height=700,scrollbars=yes,resizable=yes');
+			if (window.innerWidth <= 768) { // mobile breakpoint
+				popup = window.open('', '_blank');
+			} else {
+				popup = window.open('', 'paymentPopup', 'width=600,height=700,scrollbars=yes,resizable=yes');
+			}
 			popup.location.href = sanitizedPaymentLink;
 			resetButton();
 		} else {
