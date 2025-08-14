@@ -184,11 +184,15 @@ class BYTENFT_ONRAMP_PAYMENT_GATEWAY_Loader
 			return new WP_REST_Response(['error' => esc_html__('Order not found', 'bytenft-onramp-payment-gateway')], 404);
 		}
 
-		// Verify nonce before processing any $_POST data.
-		if ( ! isset( $_POST['security'] ) || ! wp_verify_nonce( sanitize_text_field( wp_unslash( $_POST['security'] ) ), 'my_action' ) ) {
-			wp_die( esc_html__( 'Security check failed.', 'bytenft-onramp-payment-gateway' ) );
+		// Sanitize and unslash the 'security' value
+		$security = isset($_POST['security']) ? sanitize_text_field(wp_unslash($_POST['security'])) : '';
+
+		// Check the nonce for security
+		if (empty($security) || !wp_verify_nonce($security, 'bnftonramp_payment')) {
+			wp_send_json_error(['message' => 'Nonce verification failed.']);
+			wp_die();
 		}
-		$security = sanitize_text_field( wp_unslash( $_POST['security'] ) );
+
 		$payment_token = $order->get_meta('_bnftonramp_pay_id');
 		$transactionStatusApiUrl = $this->get_api_url('/api/update-txn-status');
 		$response = wp_remote_post($transactionStatusApiUrl, [
