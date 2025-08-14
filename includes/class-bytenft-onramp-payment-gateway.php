@@ -25,12 +25,11 @@ class BYTENFT_ONRAMP_PAYMENT_GATEWAY extends WC_Payment_Gateway_CC
 	private $used_accounts = [];
 
 	private static $log_once_flags = [];
-
+	
 	/**
-	 * Constructor.
+	 * Constructor for the gateway.
 	 */
-	public function __construct()
-	{
+	public function __construct() {
 		// Check if WooCommerce is active
 		if (!class_exists('WC_Payment_Gateway_CC')) {
 			add_action('admin_notices', [$this, 'woocommerce_not_active_notice']);
@@ -51,35 +50,48 @@ class BYTENFT_ONRAMP_PAYMENT_GATEWAY extends WC_Payment_Gateway_CC
 		// Load the settings
 		$this->bnftonramp_init_form_fields();
 		$this->init_settings();
+		$this->load_gateway_settings();
 
-		// Define properties
-		$this->title = sanitize_text_field($this->get_option('title'));
-		$this->description = !empty($this->get_option('description')) ? sanitize_textarea_field($this->get_option('description')) : ($this->get_option('show_consent_checkbox') === 'yes' ? 1 : 0);
-		$this->enabled = sanitize_text_field($this->get_option('enabled'));
-		$this->sandbox = 'yes' === sanitize_text_field($this->get_option('sandbox')); // Use boolean
-		$this->public_key = $this->sandbox === 'no' ? sanitize_text_field($this->get_option('public_key')) : sanitize_text_field($this->get_option('sandbox_public_key'));
-		$this->secret_key = $this->sandbox === 'no' ? sanitize_text_field($this->get_option('secret_key')) : sanitize_text_field($this->get_option('sandbox_secret_key'));
-		$this->current_account_index = 0;
+		 // Register hooks
+    	$this->register_hooks();
+	}
+	
+	/**
+	 * Load gateway settings.
+	 */
+	private function load_gateway_settings() {
+	    $this->title = sanitize_text_field($this->get_option('title'));
+	    $this->description = !empty($this->get_option('description'))
+	        ? sanitize_textarea_field($this->get_option('description'))
+	        : ($this->get_option('show_consent_checkbox') === 'yes' ? 1 : 0);
+	    
+	    $this->enabled = sanitize_text_field($this->get_option('enabled'));
+	    $this->sandbox = 'yes' === sanitize_text_field($this->get_option('sandbox'));
+	    $this->public_key = sanitize_text_field($this->get_option($this->sandbox ? 'sandbox_public_key' : 'public_key'));
+	    $this->secret_key = sanitize_text_field($this->get_option($this->sandbox ? 'sandbox_secret_key' : 'secret_key'));
+	    $this->current_account_index = 0;
+	}
 
-		// Define hooks and actions.
+	/**
+	 * Register hooks for the gateway.
+	 */
+	private function register_hooks() {
 		add_action('woocommerce_update_options_payment_gateways_' . $this->id, [$this, 'bnftonramp_process_admin_options']);
-
-		// Enqueue styles and scripts
 		add_action('wp_enqueue_scripts', [$this, 'bnftonramp_enqueue_styles_and_scripts']);
-
 		add_action('admin_enqueue_scripts', [$this, 'bnftonramp_admin_scripts']);
 
-		// Add action to display test order tag in order details
 		add_action('woocommerce_admin_order_data_after_order_details', [$this, 'bnftonramp_display_test_order_tag']);
-
-		// Hook into WooCommerce to add a custom label to order rows
 		add_filter('woocommerce_admin_order_preview_line_items', [$this, 'bnftonramp_add_custom_label_to_order_row'], 10, 2);
-
 		add_filter('woocommerce_available_payment_gateways', [$this, 'hide_custom_payment_gateway_conditionally']);
 	}
 
-	private function get_api_url($endpoint)
-	{
+	/**
+	 * Get the API URL for the given endpoint.
+	 *
+	 * @param string $endpoint The API endpoint.
+	 * @return string
+	 */
+	private function get_api_url($endpoint) {
 		return $this->base_url . $endpoint;
 	}
 	
@@ -94,202 +106,214 @@ class BYTENFT_ONRAMP_PAYMENT_GATEWAY extends WC_Payment_Gateway_CC
 
 	    $logger->info($message, $data);
 	}
+		
+	public function bnftonramp_process_admin_options() {
+	    parent::process_admin_options();
 
-	public function bnftonramp_process_admin_options()
+	    if (!isset($_POST['bnftonramp_accounts_nonce']) || !wp_verify_nonce(sanitize_text_field(wp_unslash($_POST['bnftonramp_accounts_nonce'])), 'bnftonramp_accounts_nonce_action')) {
+	        $this->log_info('CSRF check failed during admin options update.');
+	        wp_die(esc_html__('Security check failed!', 'bytenft-onramp-payment-gateway'));
+	    }
 
-	{
-		parent::process_admin_options();
+	    $errors = [];
+	    $valid_accounts = [];
+	    $unique_live_keys = [];
+	    $unique_sandbox_keys = [];
+	    $normalized_index = 0;
 
-		$errors = [];
-		$valid_accounts = [];
+	    $raw_accounts = [];
 
-		if (!isset($_POST['bnftonramp_accounts_nonce']) || !wp_verify_nonce(sanitize_text_field(wp_unslash($_POST['bnftonramp_accounts_nonce'])), 'bnftonramp_accounts_nonce_action')) {
-			wp_die(esc_html__('Security check failed!', 'bytenft-onramp-payment-gateway'));
+		if ( isset( $_POST['accounts'] ) && is_array( $_POST['accounts'] ) ) {
+		    // Step 1: Unslash the whole array first.
+			// phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized, WordPress.Security.ValidatedSanitizedInput.MissingUnslash
+			$unslashed_accounts = wp_unslash( $_POST['accounts'] );
+			
+		    // Step 2: Sanitize each value.
+		    $raw_accounts = array_map(
+		        static function ( $account ) {
+		            return is_array( $account )
+		                ? array_map( 'sanitize_text_field', $account )
+		                : sanitize_text_field( $account );
+		        },
+		        $unslashed_accounts
+		    );
 		}
 
-		//  CHECK IF ACCOUNTS EXIST
-		if (!isset($_POST['accounts']) || !is_array($_POST['accounts']) || empty($_POST['accounts'])) {
-			$errors[] = __('You cannot delete all accounts. At least one valid payment account must be configured.', 'bytenft-onramp-payment-gateway');
-		} else {
-			$normalized_index = 0;
-			$unique_live_keys = [];
-			$unique_sandbox_keys = [];
+	    if (!is_array($raw_accounts) || empty($raw_accounts)) {
+	        $errors[] = __('You cannot delete all accounts. At least one valid payment account must be configured.', 'bytenft-onramp-payment-gateway');
+	        $this->log_info('No accounts submitted in admin options.');
+	    }
 
-			// phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- Input is sanitized below
-			$raw_accounts = isset($_POST['accounts']) ? wp_unslash($_POST['accounts']) : [];
+	    foreach ((array) $raw_accounts as $account) {
+	        if (!is_array($account)) {
+	            continue;
+	        }
 
-			if (!is_array($raw_accounts)) {
-				$raw_accounts = [];
+	        $account = array_map('sanitize_text_field', $account);
+
+	        $account_title       = $account['title'] ?? '';
+	        $priority            = intval($account['priority'] ?? 1);
+	        $live_public_key     = $account['live_public_key'] ?? '';
+	        $live_secret_key     = $account['live_secret_key'] ?? '';
+	        $sandbox_public_key  = $account['sandbox_public_key'] ?? '';
+	        $sandbox_secret_key  = $account['sandbox_secret_key'] ?? '';
+	        $has_sandbox         = isset($account['has_sandbox']);
+	        $live_status         = $account['live_status'] ?? 'Active';
+	        $sandbox_status      = $has_sandbox ? ($account['sandbox_status'] ?? 'Active') : '';
+
+	        if (empty($account_title) && empty($live_public_key) && empty($live_secret_key) && empty($sandbox_public_key) && empty($sandbox_secret_key)) {
+	            continue;
+	        }
+
+	        if (empty($account_title) || empty($live_public_key) || empty($live_secret_key)) {
+				// translators: %s: The account title entered by the user.
+			    $errors[] = sprintf(__( 'Account "%s": Title, Live Public Key, and Live Secret Key are required.', 'bytenft-onramp-payment-gateway' ),$account_title);
+			    $this->log_info("Validation failed: missing required fields for account '{$account_title}'");
+			    continue;
 			}
 
-			$accounts = array_map(function ($account) {
-				if (is_array($account)) {
-					return array_map('sanitize_text_field', $account);
-				}
-				return sanitize_text_field($account);
-			}, $raw_accounts);
 
-			$accStatusApiUrl = $this->get_api_url('/api/check-merchant-status');
+	        $live_combined = $live_public_key . '|' . $live_secret_key;
+	        if (in_array($live_combined, $unique_live_keys, true)) {
+				// translators: %s: Live Public Key.
+	            $errors[] = sprintf(__('Account "%s": Live Public Key and Live Secret Key must be unique.', 'bytenft-onramp-payment-gateway'), $account_title);
+	            $this->log_info("Validation failed: duplicate live keys for account '{$account_title}'");
+	            continue;
+	        }
 
-			foreach ($accounts as $index => $account) {
-				// Sanitize input
-				$account_title = sanitize_text_field($account['title'] ?? '');
-				$priority = isset($account['priority']) ? intval($account['priority']) : 1;
-				$live_public_key = sanitize_text_field($account['live_public_key'] ?? '');
-				$live_secret_key = sanitize_text_field($account['live_secret_key'] ?? '');
-				$sandbox_public_key = sanitize_text_field($account['sandbox_public_key'] ?? '');
-				$sandbox_secret_key = sanitize_text_field($account['sandbox_secret_key'] ?? '');
-				$has_sandbox = isset($account['has_sandbox']); // Checkbox handling
+	        if ($live_public_key === $live_secret_key) {
+				// translators: %s: Live Public Key.
+	            $errors[] = sprintf(__('Account "%s": Live Public Key and Live Secret Key must be different.', 'bytenft-onramp-payment-gateway'), $account_title);
+	            $this->log_info("Validation warning: live keys are identical for account '{$account_title}'");
+	        }
 
-				$public_key = $this->sandbox ? $sandbox_public_key : $live_public_key;
-                $secret_key = $this->sandbox ? $sandbox_secret_key : $live_secret_key;
+	        $unique_live_keys[] = $live_combined;
 
-                $merchant_status_data = [
-                    'is_sandbox'     => $this->sandbox,
-                    'api_public_key' => $public_key,
-                    'api_secret_key' => $secret_key,
-                ];
- 
-				//  Ignore empty accounts
-				if (empty($account_title) && empty($live_public_key) && empty($live_secret_key) && empty($sandbox_public_key) && empty($sandbox_secret_key)) {
-					continue;
-				}
+	        if ($has_sandbox && !empty($sandbox_public_key) && !empty($sandbox_secret_key)) {
+	            $sandbox_combined = $sandbox_public_key . '|' . $sandbox_secret_key;
 
-				//  Validate required fields
-				if (empty($account_title) || empty($live_public_key) || empty($live_secret_key)) {
-					// Translators: %s is the account title.
-					$errors[] = sprintf(__('Account "%s": Title, Live Public Key, and Live Secret Key are required.', 'bytenft-onramp-payment-gateway'), $account_title);
-					continue;
-				}
+	            if (in_array($sandbox_combined, $unique_sandbox_keys, true)) {
+					// translators: %s: Sandbox Public Key and Sandbox Secret Key.
+	                $errors[] = sprintf(__('Account "%s": Sandbox Public Key and Sandbox Secret Key must be unique.', 'bytenft-onramp-payment-gateway'), $account_title);
+	                $this->log_info("Validation failed: duplicate sandbox keys for account '{$account_title}'");
+	                continue;
+	            }
 
-				//  Ensure live keys are unique
-				$live_combined = $live_public_key . '|' . $live_secret_key;
-				if (in_array($live_combined, $unique_live_keys)) {
-					// Translators: %s is the account title.
-					$errors[] = sprintf(__('Account "%s": Live Public Key and Live Secret Key must be unique.', 'bytenft-onramp-payment-gateway'), $account_title);
-					continue;
-				}
-				$unique_live_keys[] = $live_combined;
+	            if ($sandbox_public_key === $sandbox_secret_key) {
+					// translators: %s: Sandbox Public Key and Sandbox Secret Key.
+	                $errors[] = sprintf(__('Account "%s": Sandbox Public Key and Sandbox Secret Key must be different.', 'bytenft-onramp-payment-gateway'), $account_title);
+	                $this->log_info("Validation warning: sandbox keys are identical for account '{$account_title}'");
+	            }
 
-				//  Ensure live keys are different
-				if ($live_public_key === $live_secret_key) {
-					// Translators: %s is the account title.
-					$errors[] = sprintf(__('Account "%s": Live Public Key and Live Secret Key must be different.', 'bytenft-onramp-payment-gateway'), $account_title);
-				}
+	            $unique_sandbox_keys[] = $sandbox_combined;
+	        }
 
-				//  Sandbox Validation
-				if ($has_sandbox) {
-					if (!empty($sandbox_public_key) && !empty($sandbox_secret_key)) {
-						// Sandbox keys must be unique
-						$sandbox_combined = $sandbox_public_key . '|' . $sandbox_secret_key;
-						if (in_array($sandbox_combined, $unique_sandbox_keys)) {
-							// Translators: %s is the account title.
-							$errors[] = sprintf(__('Account "%s": Sandbox Public Key and Sandbox Secret Key must be unique.', 'bytenft-onramp-payment-gateway'), $account_title);
-							continue;
-						}
-						$unique_sandbox_keys[] = $sandbox_combined;
+	        $valid_accounts[$normalized_index++] = [
+	            'title'              => $account_title,
+	            'priority'           => $priority,
+	            'live_public_key'    => $live_public_key,
+	            'live_secret_key'    => $live_secret_key,
+	            'sandbox_public_key' => $sandbox_public_key,
+	            'sandbox_secret_key' => $sandbox_secret_key,
+	            'has_sandbox'        => $has_sandbox ? 'on' : 'off',
+	            'sandbox_status'     => $sandbox_status,
+	            'live_status'        => $live_status,
+	        ];
 
-						// Sandbox keys must be different
-						if ($sandbox_public_key === $sandbox_secret_key) {
-							// Translators: %s is the account title.
-							$errors[] = sprintf(__('Account "%s": Sandbox Public Key and Sandbox Secret Key must be different.', 'bytenft-onramp-payment-gateway'), $account_title);
-						}
-					}
-				}
-				// Add the 'status' field, defaulting to 'active' for new accounts
-				$sandbox_status = isset($account['sandbox_status']) ? sanitize_text_field($account['sandbox_status']) : 'Active';
-				$live_status = isset($account['live_status']) ? sanitize_text_field($account['live_status']) : 'Active';
-				// Store valid account
-				$valid_accounts[$normalized_index] = [
-					'title' => $account_title,
-					'priority' => $priority,
-					'live_public_key' => $live_public_key,
-					'live_secret_key' => $live_secret_key,
-					'sandbox_public_key' => $sandbox_public_key,
-					'sandbox_secret_key' => $sandbox_secret_key,
-					'has_sandbox' => $has_sandbox ? 'on' : 'off',
-					'sandbox_status' => $has_sandbox ? $sandbox_status : '',
-					'live_status' => $live_status,
-				];
-				$normalized_index++;
-			}
-		}
+	        $this->log_info("Validated and added account '{$account_title}' to saved list.");
+	    }
 
-		//  Ensure at least one valid account exists
-		if (empty($valid_accounts) && empty($errors)) {
-			$errors[] = __('You cannot delete all accounts. At least one valid payment account must be configured.', 'bytenft-onramp-payment-gateway');
-		}
+	    if (empty($valid_accounts) && empty($errors)) {
+	        $errors[] = __('You cannot delete all accounts. At least one valid payment account must be configured.', 'bytenft-onramp-payment-gateway');
+	        $this->log_info('All submitted accounts failed validation. No accounts will be saved.');
+	    }
 
-		//  Stop saving if there are any errors
-		if (empty($errors)) {
-			update_option('woocommerce_bnftonramp_payment_gateway_accounts', $valid_accounts);
-			$this->admin_notices->bnftonramp_add_notice('settings_success', 'notice notice-success', __('Settings saved successfully.', 'bytenft-onramp-payment-gateway'));
-			if (class_exists('BYTENFT_ONRAMP_PAYMENT_GATEWAY_Loader')) {
-				$loader = BYTENFT_ONRAMP_PAYMENT_GATEWAY_Loader::get_instance(); // Use the static method
-				if (method_exists($loader, 'handle_cron_event')) {
-					$loader->handle_cron_event(); // Perform sync immediately
-				}
-			}
-		} else {
-			foreach ($errors as $error) {
-				$this->admin_notices->bnftonramp_add_notice('settings_error', 'notice notice-error', $error);
-			}
-		}
+	    if (empty($errors)) {
+	        update_option('woocommerce_bnftonramp_payment_gateway_accounts', $valid_accounts);
+	        $this->admin_notices->bnftonramp_add_notice('settings_success', 'notice notice-success', __('Settings saved successfully.', 'bytenft-onramp-payment-gateway'));
+	        $this->log_info('Account settings updated successfully.', ['count' => count($valid_accounts)]);
 
-		add_action('admin_notices', [$this->admin_notices, 'display_notices']);
+	        if (class_exists('BYTENFT_ONRAMP_PAYMENT_GATEWAY_Loader')) {
+	            $loader = BYTENFT_ONRAMP_PAYMENT_GATEWAY_Loader::get_instance();
+	            if (method_exists($loader, 'handle_cron_event')) {
+	                $loader->handle_cron_event();
+	                $this->log_info('Triggered BYTENFT_ONRAMP_PAYMENT_GATEWAY_Loader::handle_cron_event() after settings save.');
+	            }
+	        }
+	    } else {
+	        foreach ($errors as $error) {
+	            $this->admin_notices->bnftonramp_add_notice('settings_error', 'notice notice-error', $error);
+	            $this->log_info("Admin settings error: {$error}");
+	        }
+	    }
+
+	    add_action('admin_notices', [$this->admin_notices, 'display_notices']);
 	}
 
+	/**
+	 * Get the next available account for payment processing.
+	 *
+	 * @param array $used_accounts List of already used accounts.
+	 * @return array|null
+	 */
 	public function get_updated_account() {
-		$accounts = get_option('woocommerce_bytenft_payment_gateway_accounts', []);
-		$valid_accounts = [];
-		foreach ($accounts as $index => $account) {
-		    $useSandbox = $this->sandbox;
-		    $secretKey = $useSandbox ? $account['sandbox_secret_key'] : $account['live_secret_key'];
-		    $publicKey = $useSandbox ? $account['sandbox_public_key'] : $account['live_public_key'];
+	    $accounts = get_option('woocommerce_bytenft_payment_gateway_accounts', []);
+	    $valid_accounts = [];
 
-		    $this->log_info("Checking merchant status for account #$index", [
-		        'context' => compact('useSandbox', 'publicKey')
-		    ]);
+	    foreach ($accounts as $index => $account) {
+	        $useSandbox = $this->sandbox;
+	        $secretKey = $useSandbox ? $account['sandbox_secret_key'] : $account['live_secret_key'];
+	        $publicKey = $useSandbox ? $account['sandbox_public_key'] : $account['live_public_key'];
 
-		    $checkStatusUrl = $this->get_api_url('/api/check-merchant-status', $useSandbox);
+	        $this->log_info("Checking merchant status for account '{$account['title']}'", [
+	            'useSandbox' => $useSandbox,
+	            'publicKey' => $publicKey,
+	        ]);
 
-		    $response = wp_remote_post($checkStatusUrl, [
-		        'headers' => [
-		            'Authorization' => 'Bearer ' . $publicKey,
-		            'Content-Type'  => 'application/json',
-		        ],
-		        'timeout' => 10,
-		        'body' => wp_json_encode([
-		            'api_secret_key' => $secretKey,
-		            'is_sandbox'     => $useSandbox,
-		        ]),
-		    ]);
+	        $checkStatusUrl = $this->get_api_url('/api/check-merchant-status', $useSandbox);
+	        $response = wp_remote_post($checkStatusUrl, [
+	            'headers' => [
+	                'Authorization' => 'Bearer ' . $publicKey,
+	                'Content-Type'  => 'application/json',
+	            ],
+	            'timeout' => 10,
+	            'body' => wp_json_encode([
+	                'api_secret_key' => $secretKey,
+	                'is_sandbox'     => $useSandbox,
+	            ]),
+	        ]);
 
-		    $body = json_decode(wp_remote_retrieve_body($response), true);
-			$hasError = is_array($body) && strtolower($body['status'] ?? '') === 'error';
+	        $body = json_decode(wp_remote_retrieve_body($response), true);
+	        $isError = is_array($body) && strtolower($body['status'] ?? '') === 'error';
 
-			$valid_accounts[$index] = [
-				'title' => $account['title'],
-				'priority' => $account['priority'],
-				'live_public_key' => $account['live_public_key'],
-				'live_secret_key' => $account['live_secret_key'],
-				'sandbox_public_key' => $account['sandbox_public_key'],
-				'sandbox_secret_key' => $account['sandbox_secret_key'],
-				'has_sandbox' => $account['has_sandbox'],
-				'sandbox_status' => $hasError ? 'Inactive' : 'Active',
-				'live_status' => $hasError ? 'Inactive' : 'Active',
-			];
-			$index++;
-		    $this->log_info("Account #$index not active", ['context' => $body]);
-		}
+	        $valid_accounts[] = [
+	            'title'              => $account['title'],
+	            'priority'           => $account['priority'],
+	            'live_public_key'    => $account['live_public_key'],
+	            'live_secret_key'    => $account['live_secret_key'],
+	            'sandbox_public_key' => $account['sandbox_public_key'],
+	            'sandbox_secret_key' => $account['sandbox_secret_key'],
+	            'has_sandbox'        => $account['has_sandbox'],
+	            'sandbox_status'     => $isError ? 'Inactive' : 'Active',
+	            'live_status'        => $isError ? 'Inactive' : 'Active',
+	        ];
 
-		if (!empty($valid_accounts)) {
-			update_option('woocommerce_bytenft_payment_gateway_accounts', $valid_accounts);
-		}
+	        if ($isError) {
+	            $this->log_info("Account '{$account['title']}' is inactive", ['response' => $body]);
+	        } else {
+	            $this->log_info("Account '{$account['title']}' is active");
+	        }
+	    }
+
+	    if (!empty($valid_accounts)) {
+	        update_option('woocommerce_bytenft_payment_gateway_accounts', $valid_accounts);
+	        return true;
+	    }
 
 	    $this->log_info('No active account. Removing bytenft gateway.');
 	    return false;
 	}
+
 
 	/**
 	 * Initialize gateway settings form fields.
@@ -302,83 +326,84 @@ class BYTENFT_ONRAMP_PAYMENT_GATEWAY extends WC_Payment_Gateway_CC
 	/**
 	 * Get form fields.
 	 */
-	public function bnftonramp_get_form_fields()
-	{
-		$form_fields = [
-			'enabled' => [
-				'title' => __('Enable/Disable', 'bytenft-onramp-payment-gateway'),
-				'label' => __('Enable ByteNFT Onramp Payment Gateway', 'bytenft-onramp-payment-gateway'),
-				'type' => 'checkbox',
-				'description' => '',
-				'default' => 'yes',
-			],
-			'title' => [
-				'title' => __('Title', 'bytenft-onramp-payment-gateway'),
-				'type' => 'text',
-				'description' => __('This controls the title which the user sees during checkout.', 'bytenft-onramp-payment-gateway'),
-				'default' => __('Pay with Debit Cards (Visa, Mastercard, or Apple Pay)', 'bytenft-onramp-payment-gateway'),
-				'desc_tip' => __('Enter the title of the payment gateway as it will appear to customers during checkout.', 'bytenft-onramp-payment-gateway'),
-			],
-			'description' => [
-				'title' => __('Description', 'bytenft-onramp-payment-gateway'),
-				'type' => 'text',
-				'description' => __('Provide a brief description of the ByteNFT Onramp Payment Gateway option.', 'bytenft-onramp-payment-gateway'),
-				'default' => 'Pay easily using Visa, Mastercard Debit, Apple Pay, or your Coinbase account. Your payment is instantly converted to USDC and applied to your order — no wallet setup or extra steps required.',
-				'desc_tip' => __('Use Apple Pay for the highest approval success. No signup needed — pay up to $500/week.', 'bytenft-onramp-payment-gateway'),
-			],
-			'instructions' => [
-				'title' => __('Instructions', 'bytenft-onramp-payment-gateway'),
-				'type' => 'title',
-				// Translators comment added here
-				/* translators: 1: Link to developer account */
-				'description' => sprintf(
-					/* translators: %1$s is a link to the developer account. %2$s is used for any additional formatting if necessary. */
-					__('To configure this gateway, %1$sGet your API keys from your merchant account: Developer Settings > API Keys.%2$s', 'bytenft-onramp-payment-gateway'),
-					'<strong><a class="bnftonramp-instructions-url" href="' .
-						esc_url($this->base_url . '/developers') .
-						'" target="_blank">' .
-						__('click here to access your developer account', 'bytenft-onramp-payment-gateway') .
-						'</a></strong><br>',
-					''
-				),
-				'desc_tip' => true,
-			],
-			'sandbox' => [
-				'title' => __('Sandbox', 'bytenft-onramp-payment-gateway'),
-				'label' => __('Enable Sandbox Mode', 'bytenft-onramp-payment-gateway'),
-				'type' => 'checkbox',
-				'description' => __('Place the payment gateway in sandbox mode using sandbox API keys (real payments will not be taken).', 'bytenft-onramp-payment-gateway'),
-				'default' => 'no',
-			],
-			'accounts' => [
-				'title' => __('Payment Accounts', 'bytenft-onramp-payment-gateway'),
-				'type' => 'accounts_repeater', // Custom field type for dynamic accounts
-				'description' => __('Add multiple payment accounts dynamically.', 'bytenft-onramp-payment-gateway'),
-			],
-			'order_status' => [
-				'title' => __('Order Status', 'bytenft-onramp-payment-gateway'),
-				'type' => 'select',
-				'description' => __('Select the order status to be set after successful payment.', 'bytenft-onramp-payment-gateway'),
-				'default' => '', // Default is empty, which is our placeholder
-				'desc_tip' => true,
-				'id' => 'order_status_select', // Add an ID for targeting
-				'options' => [
-					// '' => __('Select order status', 'bytenft-onramp-payment-gateway'), // Placeholder option
-					'processing' => __('Processing', 'bytenft-onramp-payment-gateway'),
-					'completed' => __('Completed', 'bytenft-onramp-payment-gateway'),
-				],
-			],
-			'show_consent_checkbox' => [
-				'title' => __('Show Consent Checkbox', 'bytenft-onramp-payment-gateway'),
-				'label' => __('Enable consent checkbox on checkout page', 'bytenft-onramp-payment-gateway'),
-				'type' => 'checkbox',
-				'description' => __('Check this box to show the consent checkbox on the checkout page. Uncheck to hide it.', 'bytenft-onramp-payment-gateway'),
-				'default' => 'no',
-			],
-		];
+	public function bnftonramp_get_form_fields() {
+	    $dev_instructions_link = sprintf(
+	        '<strong><a class="bnftonramp-instructions-url" href="%s" target="_blank">%s</a></strong><br>',
+	        esc_url($this->base_url . '/developers'),
+	        __('click here to access your developer account', 'bytenft-onramp-payment-gateway')
+	    );
 
-		return apply_filters('woocommerce_gateway_settings_fields_' . $this->id, $form_fields, $this);
+	    return apply_filters('woocommerce_gateway_settings_fields_' . $this->id, [
+
+	        'enabled' => [
+	            'title'       => __('Enable/Disable', 'bytenft-onramp-payment-gateway'),
+	            'label'       => __('Enable ByteNFT Onramp Payment Gateway', 'bytenft-onramp-payment-gateway'),
+	            'type'        => 'checkbox',
+	            'default'     => 'yes',
+	        ],
+
+	        'title' => [
+	            'title'       => __('Title', 'bytenft-onramp-payment-gateway'),
+	            'type'        => 'text',
+	            'description' => __('This controls the title which the user sees during checkout.', 'bytenft-onramp-payment-gateway'),
+	            'default'     => __('Pay with Debit Cards (Visa, Mastercard, or Apple Pay)', 'bytenft-onramp-payment-gateway'),
+	            'desc_tip'    => true,
+	        ],
+
+	        'description' => [
+	            'title'       => __('Description', 'bytenft-onramp-payment-gateway'),
+	            'type'        => 'text',
+	            'description' => __('Provide a brief description of the payment option.', 'bytenft-onramp-payment-gateway'),
+	            'default'     => __('Pay easily using Visa, Mastercard Debit, Apple Pay, or your Coinbase account...', 'bytenft-onramp-payment-gateway'),
+	            'desc_tip'    => true,
+	        ],
+
+	         'instructions' => [
+	            'title'       => __('Instructions', 'bytenft-onramp-payment-gateway'),
+	            'type'        => 'title',
+				// translators: 1: Opening HTML link tag for "Get your API keys" instructions, 2: Closing HTML link tag.
+	            'description' => sprintf(__('To configure this gateway, %1$sGet your API keys from your merchant account: Developer Settings > API Keys.%2$s', 'bytenft-onramp-payment-gateway'),$dev_instructions_link,''),
+	            'desc_tip'    => true,
+	        ],
+
+	        'sandbox' => [
+	            'title'       => __('Sandbox', 'bytenft-onramp-payment-gateway'),
+	            'label'       => __('Enable Sandbox Mode', 'bytenft-onramp-payment-gateway'),
+	            'type'        => 'checkbox',
+	            'description' => __('Use sandbox API keys (real payments will not be taken).', 'bytenft-onramp-payment-gateway'),
+	            'default'     => 'no',
+	        ],
+
+	        'accounts' => [
+	            'title'       => __('Payment Accounts', 'bytenft-onramp-payment-gateway'),
+	            'type'        => 'accounts_repeater',
+	            'description' => __('Add multiple payment accounts dynamically.', 'bytenft-onramp-payment-gateway'),
+	        ],
+
+	        'order_status' => [
+	            'title'       => __('Order Status', 'bytenft-onramp-payment-gateway'),
+	            'type'        => 'select',
+	            'description' => __('Order status after successful payment.', 'bytenft-onramp-payment-gateway'),
+	            'default'     => '',
+	            'id'          => 'order_status_select',
+	            'desc_tip'    => true,
+	            'options'     => [
+	                'processing' => __('Processing', 'bytenft-onramp-payment-gateway'),
+	                'completed'  => __('Completed', 'bytenft-onramp-payment-gateway'),
+	            ],
+	        ],
+
+	        'show_consent_checkbox' => [
+	            'title'       => __('Show Consent Checkbox', 'bytenft-onramp-payment-gateway'),
+	            'label'       => __('Enable consent checkbox on checkout page', 'bytenft-onramp-payment-gateway'),
+	            'type'        => 'checkbox',
+	            'description' => __('Show a checkbox for user consent during checkout.', 'bytenft-onramp-payment-gateway'),
+	            'default'     => 'no',
+	        ],
+
+	    ], $this);
 	}
+
 
 	public function generate_accounts_repeater_html($key, $data)
 	{
@@ -656,10 +681,10 @@ class BYTENFT_ONRAMP_PAYMENT_GATEWAY extends WC_Payment_Gateway_CC
 			    continue; // Try next account
 			}
 
-
 			/* ========================== END ========================== */
 
-			$lock_key = $account['lock_key'] ?? null;
+			$raw_lock_key = $account['lock_key'] ?? null;
+			$lock_key = $raw_lock_key ? preg_replace('/\s+/', '_', trim($raw_lock_key)) : null;
 
 			// Add order note mentioning account name
 			$order->add_order_note(__('Processing Payment Via: ', 'bytenft-onramp-payment-gateway') . $account['title']);
@@ -1769,7 +1794,8 @@ class BYTENFT_ONRAMP_PAYMENT_GATEWAY extends WC_Payment_Gateway_CC
 
 		// Concurrency Handling: Lock the selected account
 		foreach ($available_accounts as $account) {
-			$lock_key = "bnftonramp_lock_{$account['title']}";
+			$sanitized_title = preg_replace('/\s+/', '_', $account['title']);
+			$lock_key = "bnftonramp_lock_{$sanitized_title}";
 
 			// Try to acquire lock
 			if ($this->acquire_lock($lock_key)) {
@@ -1786,27 +1812,22 @@ class BYTENFT_ONRAMP_PAYMENT_GATEWAY extends WC_Payment_Gateway_CC
 	 */
 	private function acquire_lock($lock_key)
 	{
-		$lock_timeout = 10; // Lock expires after 10 seconds
+	    $lock_timeout = 500; // 5 minutes
+	    $now = time();
 
-		// Set lock expiry time
-		$lock_value = time() + $lock_timeout;
+	    $existing_lock = get_option($lock_key);
+	    if ($existing_lock && intval($existing_lock) > $now) {
+	        // Lock already held by another process
+	        wc_get_logger()->info("Lock already held for '{$lock_key}', skipping.", ['source' => 'bytenft-onramp-payment-gateway']);
+	        return false;
+	    }
 
-		// Try to add or update the lock in the options table
-		$result = update_option($lock_key, $lock_value, false); // 'false' ensures no autoload
+	    // Lock is expired or doesn't exist, acquire it
+	    $lock_value = $now + $lock_timeout;
+	    update_option($lock_key, $lock_value, false);
 
-		if (!$result) {
-			// Log the error if update_option fails
-			wc_get_logger()->error(
-				"DB Error: Unable to acquire lock for '{$lock_key}'",
-				['source' => 'bytenft-onramp-payment-gateway']
-			);
-			return false; // Lock acquisition failed
-		}
-
-		// Log successful lock acquisition
-		wc_get_logger()->info("Lock acquired for '{$lock_key}'", ['source' => 'bytenft-onramp-payment-gateway']);
-
-		return true;
+	    wc_get_logger()->info("Lock acquired for '{$lock_key}'", ['source' => 'bytenft-onramp-payment-gateway']);
+	    return true;
 	}
 
 
