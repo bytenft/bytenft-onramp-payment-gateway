@@ -5,7 +5,7 @@ if (!defined('BYTENFT_ONRAMP_PROTOCOL')) {
 }
 
 if (!defined('BYTENFT_ONRAMP_HOST')) {
-    define('BYTENFT_ONRAMP_HOST', 'www.bytenft.xyz');
+    define('BYTENFT_ONRAMP_HOST', 'pay.bytenft.xyz');
 }
 
 if (!defined('BYTENFT_ONRAMP_BASE_URL')) {
