@@ -8,7 +8,7 @@ The ByteNFT Onramp Payment Gateway plugin for WooCommerce 8.9+ allows you to acc
 **Tags:** woocommerce, payment gateway, fiat, ByteNFT Onramp  
 **Requires at least:** 6.2  
 **Tested up to:** 6.7  
-**Stable tag:** 1.0.4  
+**Stable tag:** 1.0.5  
 **License:** GPLv3 or later  
 **License URI:** [GPLv3 License](https://www.gnu.org/licenses/gpl-3.0.html)
 
@@ -141,6 +141,10 @@ For any issues or enhancement requests with this plugin, please contact the Byte
 The official documentation for this plugin is available at: [https://www.bytenft.xyz/api/docs/wordpress-plugin](https://www.bytenft.xyz/api/docs/wordpress-plugin)
 
 ## Changelog
+
+## Version 1.0.5
+- Updated payment domain from `www.bytenft.xyz` to `pay.bytenft.xyz`
+- For integrations or firewalls, please update/whitelist the new domain
 
 ## Version 1.0.4
 
