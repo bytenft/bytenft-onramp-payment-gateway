@@ -76,4 +76,4 @@ Initial release.
 
 == Support ==
 
-For support, visit: [https://www.bytenft.xyz/reach-out](https://www.bytenft.xyz/reach-out)
+For support, visit: [https://pay.bytenft.xyz/reach-out](https://pay.bytenft.xyz/reach-out)

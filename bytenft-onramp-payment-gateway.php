@@ -4,7 +4,7 @@
  * Plugin Name: ByteNFT Onramp Payment Gateway
  * Description: This plugin enables secure USD payments via debit cards, Apple Pay, and Coinbase. It provides a seamless checkout experience with instant USDC conversion and no wallet setup required.
  * Author: ByteNFT
- * Author URI: https://www.bytenft.xyz/
+ * Author URI: https://pay.bytenft.xyz/
  * Text Domain: bytenft-onramp-payment-gateway
  * Plugin URI: https://github.com/bytenft/bytenft-onramp-payment-gateway
  * Version: 1.0.5

@@ -130,8 +130,8 @@ class BYTENFT_ONRAMP_PAYMENT_GATEWAY_Loader
 	{
 		if (plugin_basename(BYTENFT_ONRAMP_PAYMENT_GATEWAY_FILE) === $file) {
 			$row_meta = [
-				'docs'    => '<a href="' . esc_url(apply_filters('bnftonramp_docs_url', 'https://www.bytenft.xyz/api/docs/wordpress-plugin')) . '" target="_blank">' . esc_html__('Documentation', 'bytenft-onramp-payment-gateway') . '</a>',
-				'support' => '<a href="' . esc_url(apply_filters('bnftonramp_support_url', 'https://www.bytenft.xyz/reach-out')) . '" target="_blank">' . esc_html__('Support', 'bytenft-onramp-payment-gateway') . '</a>',
+				'docs'    => '<a href="' . esc_url(apply_filters('bnftonramp_docs_url', 'https://pay.bytenft.xyz/api/docs/wordpress-plugin')) . '" target="_blank">' . esc_html__('Documentation', 'bytenft-onramp-payment-gateway') . '</a>',
+				'support' => '<a href="' . esc_url(apply_filters('bnftonramp_support_url', 'https://pay.bytenft.xyz/reach-out')) . '" target="_blank">' . esc_html__('Support', 'bytenft-onramp-payment-gateway') . '</a>',
 			];
 
 			$links = array_merge($links, $row_meta);
