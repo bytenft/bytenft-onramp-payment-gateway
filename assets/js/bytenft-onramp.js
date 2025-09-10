@@ -112,6 +112,8 @@ jQuery(function ($) {
 		var height = 700;
 		var left = window.innerWidth / 2 - width / 2;
 		var top = window.innerHeight / 2 - height / 2;
+
+		// Try opening popup directly
 		var popupWindow = window.open(
 			sanitizedPaymentLink,
 			'paymentPopup',
@@ -119,76 +121,94 @@ jQuery(function ($) {
 		);
 
 		if (!popupWindow || popupWindow.closed || typeof popupWindow.closed === 'undefined') {
-			if (window.innerWidth <= 768) { // mobile breakpoint
-				popup = window.open('', '_blank');
+			// Popup blocked
+			if (window.innerWidth <= 768 || isSafari()) {
+				// On mobile Safari → safer to just redirect same tab
+				window.location.href = sanitizedPaymentLink;
 			} else {
-				popup = window.open('', 'paymentPopup', 'width=600,height=700,scrollbars=yes,resizable=yes');
-			}
-			popup.location.href = sanitizedPaymentLink;
-			resetButton();
-		} else {
-			popupInterval = setInterval(function () {
-				if (popupWindow.closed) {
-					clearInterval(popupInterval);
-					clearInterval(paymentStatusInterval);
-					isPollingActive = false;
+				// On desktop, try popup again
+				var popup = window.open(
+					sanitizedPaymentLink,
+					'paymentPopup',
+					'width=600,height=700,scrollbars=yes,resizable=yes'
+				);
 
-					$.ajax({
-						type: 'POST',
-						url: bnftonramp_params.ajax_url,
-						data: {
-							action: 'bnftonramp_popup_closed_event',
-							order_id: orderId,
-							security: bnftonramp_params.bnftonramp_nonce,
-						},
-						dataType: 'json',
-						success: function (response) {
-							if (response.success && response.data.redirect_url) {
-								window.location.href = response.data.redirect_url;
-							}
-						},
-						complete: function () {
-							resetButton();
-						}
-					});
+				if (!popup) {
+					// If still blocked → fallback to same tab
+					window.location.href = sanitizedPaymentLink;
 				}
-			}, 500);
+			}
+			resetButton();
+			return; // ⛔ don’t continue to polling logic if no popup
+		}
 
-			if (!isPollingActive) {
-				isPollingActive = true;
-				paymentStatusInterval = setInterval(function () {
-					$.ajax({
-						type: 'POST',
-						url: bnftonramp_params.ajax_url,
-						data: {
-							action: 'bnftonramp_check_payment_status',
-							order_id: orderId,
-							security: bnftonramp_params.bnftonramp_nonce,
-						},
-						dataType: 'json',
-						success: function (statusResponse) {
-							if (['success', 'failed', 'cancelled'].includes(statusResponse.data.status)) {
-								clearInterval(paymentStatusInterval);
-								clearInterval(popupInterval);
-								isPollingActive = false;
+		// ✅ Only run polling if popup really exists
+		popupInterval = setInterval(function () {
+			if (popupWindow.closed) {
+				clearInterval(popupInterval);
+				clearInterval(paymentStatusInterval);
+				isPollingActive = false;
 
-								try {
-									if (popupWindow && !popupWindow.closed) {
-										popupWindow.close();
-									}
-								} catch (e) {
-									console.warn('Unable to close popup window:', e);
+				$.ajax({
+					type: 'POST',
+					url: bnftonramp_params.ajax_url,
+					data: {
+						action: 'bnftonramp_popup_closed_event',
+						order_id: orderId,
+						security: bnftonramp_params.bnftonramp_nonce,
+					},
+					dataType: 'json',
+					success: function (response) {
+						if (response.success && response.data.redirect_url) {
+							window.location.href = response.data.redirect_url;
+						}
+					},
+					complete: function () {
+						resetButton();
+					}
+				});
+			}
+		}, 500);
+
+		if (!isPollingActive) {
+			isPollingActive = true;
+			paymentStatusInterval = setInterval(function () {
+				$.ajax({
+					type: 'POST',
+					url: bnftonramp_params.ajax_url,
+					data: {
+						action: 'bnftonramp_check_payment_status',
+						order_id: orderId,
+						security: bnftonramp_params.bnftonramp_nonce,
+					},
+					dataType: 'json',
+					success: function (statusResponse) {
+						if (['success', 'failed', 'cancelled'].includes(statusResponse.data.status)) {
+							clearInterval(paymentStatusInterval);
+							clearInterval(popupInterval);
+							isPollingActive = false;
+
+							try {
+								if (popupWindow && !popupWindow.closed) {
+									popupWindow.close();
 								}
+							} catch (e) {
+								console.warn('Unable to close popup window:', e);
+							}
 
-								if (statusResponse.data.redirect_url) {
-									window.location.href = statusResponse.data.redirect_url;
-								}
+							if (statusResponse.data.redirect_url) {
+								window.location.href = statusResponse.data.redirect_url;
 							}
 						}
-					});
-				}, 5000);
-			}
+					}
+				});
+			}, 5000);
 		}
+	}
+
+	// Detect Safari
+	function isSafari() {
+		return /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
 	}
 
 	function handleResponse(response, $form) {
