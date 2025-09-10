@@ -7,7 +7,7 @@
  * Author URI: https://pay.bytenft.xyz/
  * Text Domain: bytenft-onramp-payment-gateway
  * Plugin URI: https://github.com/bytenft/bytenft-onramp-payment-gateway
- * Version: 1.0.5
+ * Version: 1.0.6
  * License: GPLv3 or later
  * License URI: https://www.gnu.org/licenses/gpl-3.0.html
  *
