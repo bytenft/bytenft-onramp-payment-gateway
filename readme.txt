@@ -3,7 +3,7 @@ Contributors: ByteNFT Onramp
 Tags: woocommerce, payment gateway, fiat, ByteNFT Onramp
 Requires at least: 5.0
 Tested up to: 6.8
-Stable tag: 1.0.5
+Stable tag: 1.0.6
 License: GPLv3 or later
 License URI: https://www.gnu.org/licenses/gpl-3.0.html
 
@@ -26,6 +26,10 @@ This plugin integrates ByteNFT Onramp Payment Gateway with WooCommerce, enabling
 Visit the DFin website and log in to your account. Navigate to Developer Settings to generate or retrieve API keys.
 
 == Changelog ==
+
+= 1.0.6 =
+* Added support for passing `email`, `phone_number`, and `country_code` in payment requests.
+* Improved validation for checkout form fields.
 
 = 1.0.5 =
 * Updated payment domain to `pay.bytenft.xyz` for improved security and reliability.
@@ -55,6 +59,10 @@ Visit the DFin website and log in to your account. Navigate to Developer Setting
 * Initial release.
 
 == Upgrade Notice ==
+
+
+= 1.0.6 =
+This update adds support for customer contact details (`email`, `phone_number`, `country_code`) in checkout. 
 
 = 1.0.5 =
 We’ve moved to a new payment domain: `pay.bytenft.xyz`. Please update saved links, API integrations, or whitelists if required.
