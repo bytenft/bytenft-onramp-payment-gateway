@@ -3,7 +3,7 @@ Contributors: ByteNFT Onramp
 Tags: woocommerce, payment gateway, fiat, ByteNFT Onramp
 Requires at least: 5.0
 Tested up to: 6.8
-Stable tag: 1.0.7
+Stable tag: 1.0.8
 License: GPLv3 or later
 License URI: https://www.gnu.org/licenses/gpl-3.0.html
 
@@ -26,6 +26,9 @@ This plugin integrates ByteNFT Onramp Payment Gateway with WooCommerce, enabling
 Visit the DFin website and log in to your account. Navigate to Developer Settings to generate or retrieve API keys.
 
 == Changelog ==
+
+= 1.0.8 =
+* Fixed a “Null is not an object – popup.location” error that occurred when opening the payment popup during order processing.
 
 = 1.0.7 =
 * Added support for multiple currencies to enhance payment flexibility.
@@ -62,6 +65,9 @@ Visit the DFin website and log in to your account. Navigate to Developer Setting
 * Initial release.
 
 == Upgrade Notice ==
+
+= 1.0.8 =
+* Fixes a “Null is not an object – popup.location” error that occurred when opening the payment popup, ensuring a more stable and reliable checkout process.
 
 = 1.0.7 =
 * Introduces multi-currency support, allowing greater flexibility and a smoother checkout experience for international customers.

@@ -8,7 +8,7 @@ The ByteNFT Onramp Payment Gateway plugin for WooCommerce 8.9+ allows you to acc
 **Tags:** woocommerce, payment gateway, fiat, ByteNFT Onramp  
 **Requires at least:** 6.2  
 **Tested up to:** 6.7  
-**Stable tag:** 1.0.7  
+**Stable tag:** 1.0.8  
 **License:** GPLv3 or later  
 **License URI:** [GPLv3 License](https://www.gnu.org/licenses/gpl-3.0.html)
 
@@ -141,6 +141,10 @@ For any issues or enhancement requests with this plugin, please contact the Byte
 The official documentation for this plugin is available at: [https://pay.bytenft.xyz/api/docs/wordpress-plugin](https://pay.bytenft.xyz/api/docs/wordpress-plugin)
 
 ## Changelog
+
+### Version 1.0.8
+
+- **Payment Popup Fix:** Resolved a bug that caused a “Null is not an object — popup.location” error when opening the payment popup during order processing.
 
 ### Version 1.0.7
 
