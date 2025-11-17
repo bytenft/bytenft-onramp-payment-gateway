@@ -118,13 +118,25 @@ jQuery(function ($) {
 			'width=' + width + ',height=' + height + ',scrollbars=yes,top=' + top + ',left=' + left
 		);
 
+		if (isIOS()) {
+            // ⚡️ RE-USE THE PREVIOUSLY OPENED POP-UP
+            if (popupWindow && !popupWindow.closed) {
+                popupWindow.location.href = sanitizedPaymentLink;
+            } else {
+                // Fallback for unexpected cases
+                popupWindow = window.open(sanitizedPaymentLink, '_blank');
+            }
+        } else {
+            popupWindow = window.open(
+                sanitizedPaymentLink,
+                'paymentPopup',
+                'width=' + width + ',height=' + height +
+                ',scrollbars=yes,resizable=yes,top=' + top + ',left=' + left
+            );
+        }
+
 		if (!popupWindow || popupWindow.closed || typeof popupWindow.closed === 'undefined') {
-			if (window.innerWidth <= 768) { // mobile breakpoint
-				popup = window.open('', '_blank');
-			} else {
-				popup = window.open('', 'paymentPopup', 'width=600,height=700,scrollbars=yes,resizable=yes');
-			}
-			popup.location.href = sanitizedPaymentLink;
+			window.location.href = sanitizedPaymentLink;
 			resetButton();
 		} else {
 			popupInterval = setInterval(function () {
